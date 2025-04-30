@@ -16,6 +16,7 @@ import CartButton from "../../components/CartButton";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useState, useEffect } from "react";
+import { useNavigation } from "@react-navigation/native";
 // Dữ liệu mẫu cho Category
 // const categories = [
 //   {
@@ -66,6 +67,7 @@ import { useState, useEffect } from "react";
 
 export default function HomeVer1() {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation(); // Thêm hook
   const [categories, setCategories] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
 
@@ -131,8 +133,16 @@ export default function HomeVer1() {
       </Text>
 
       {/* Thanh tìm kiếm */}
+      {/* Thanh tìm kiếm */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color="#888" style={styles.searchIcon} />
+        <TouchableOpacity onPress={() => navigation.navigate("SearchScreen")}>
+          <Icon
+            name="search"
+            size={20}
+            color="#888"
+            style={styles.searchIcon}
+          />
+        </TouchableOpacity>
         <TextInput
           placeholder="Search dishes, restaurants"
           style={styles.searchInput}

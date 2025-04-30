@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -12,60 +12,105 @@ import {
 import Icon from "react-native-vector-icons/Ionicons";
 import CartButton from "../../components/CartButton";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
-
+import { supabase } from "../../supabaseHelper/supabase";
+import { useNavigation } from "@react-navigation/native";
 // Update recentKeywords to include "Pumpkin"
-const recentKeywords = [
-  { id: 1, namecategory: "Burger" },
-  { id: 2, namecategory: "Sandwich" },
-  { id: 3, namecategory: "Pizza" },
-  { id: 4, namecategory: "Salad" },
-  { id: 5, namecategory: "Pumpkin" },
-];
+// const recentKeywords = [
+//   { id: 1, namecategory: "Burger" },
+//   { id: 2, namecategory: "Sandwich" },
+//   { id: 3, namecategory: "Pizza" },
+//   { id: 4, namecategory: "Salad" },
+//   { id: 5, namecategory: "Pumpkin" },
+// ];
 
 // Suggested Restaurants Data
-const suggestedRestaurants = [
-  {
-    id: 1,
-    img: require("../../../assets/images/User/pansi.jpg"),
-    namerestaurant: "Pansi",
-    starRate: 4.7,
-  },
-  {
-    id: 2,
-    img: require("../../../assets/images/User/american-spicy.jpg"),
-    namerestaurant: "American Spicy Burger Shop",
-    starRate: 4.3,
-  },
-  {
-    id: 3,
-    img: require("../../../assets/images/User/cafenio.jpg"),
-    namerestaurant: "Cafenio Coffee Club",
-    starRate: 4.0,
-  },
-];
+// const suggestedRestaurants = [
+//   {
+//     id: 1,
+//     img: require("../../../assets/images/User/pansi.jpg"),
+//     namerestaurant: "Pansi",
+//     starRate: 4.7,
+//   },
+//   {
+//     id: 2,
+//     img: require("../../../assets/images/User/american-spicy.jpg"),
+//     namerestaurant: "American Spicy Burger Shop",
+//     starRate: 4.3,
+//   },
+//   {
+//     id: 3,
+//     img: require("../../../assets/images/User/cafenio.jpg"),
+//     namerestaurant: "Cafenio Coffee Club",
+//     starRate: 4.0,
+//   },
+// ];
 
 // Popular Fast Food Data
-const popularFastFood = [
-  {
-    id: 1,
-    img: require("../../../assets/images/User/european-pizza.jpg"),
-    pizzaName: "European Pizza",
-    NameRestaurant: "Uttora Coffee House",
-  },
-  {
-    id: 2,
-    img: require("../../../assets/images/User/buffalo-pizza.jpg"),
-    pizzaName: "Buffalo Pizza",
-    NameRestaurant: "Cafenio Coffee Club",
-  },
-];
+// const popularFastFood = [
+//   {
+//     id: 1,
+//     img: require("../../../assets/images/User/european-pizza.jpg"),
+//     pizzaName: "European Pizza",
+//     NameRestaurant: "Uttora Coffee House",
+//   },
+//   {
+//     id: 2,
+//     img: require("../../../assets/images/User/buffalo-pizza.jpg"),
+//     pizzaName: "Buffalo Pizza",
+//     NameRestaurant: "Cafenio Coffee Club",
+//   },
+// ];
 
 export default function SearchScreen() {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation(); // Thêm dòng này
   const [searchText, setSearchText] = useState("");
   const [suggestion, setSuggestion] = useState(null);
+  const [recentKeywords, setRecentKeywords] = useState([]);
+  const [suggestedRestaurants, setSuggestedRestaurants] = useState([]);
+  const [popularFastFood, setPopularFastFood] = useState([]);
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    const fetchData = async () => {
+      // Lấy danh mục cho recentKeywords
+      const { data: catData } = await supabase.from("category").select("*");
+      setRecentKeywords(
+        catData.map((cat) => ({
+          id: cat.id,
+          namecategory: cat.name,
+        }))
+      );
+
+      // Lấy nhà hàng cho suggestedRestaurants
+      const { data: resData } = await supabase
+        .from("restaurant")
+        .select("*")
+        .limit(3);
+      setSuggestedRestaurants(
+        resData.map((res) => ({
+          id: res.id,
+          img: res.img,
+          namerestaurant: res.name,
+          starRate: res.starrating,
+        }))
+      );
+
+      // Lấy món ăn cho popularFastFood
+      const { data: prodData } = await supabase
+        .from("product")
+        .select("*, restaurant(name)")
+        .limit(3);
+      setPopularFastFood(
+        prodData.map((prod) => ({
+          id: prod.id,
+          img: prod.img,
+          pizzaName: prod.name,
+          NameRestaurant: prod.restaurant.name,
+        }))
+      );
+    };
+    fetchData();
+  }, []);
 
   const handleTextChange = (text) => {
     setSearchText(text);
@@ -87,7 +132,7 @@ export default function SearchScreen() {
     setSearchText("");
     setSuggestion(null);
   };
-
+  if (!fontsLoaded) return null;
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       {/* Header */}
@@ -101,7 +146,7 @@ export default function SearchScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => console.log("Go back")}
+            onPress={() => navigation.goBack()}
           >
             <Icon name="chevron-back" size={24} color="#181C2E" />
           </TouchableOpacity>
@@ -160,7 +205,11 @@ export default function SearchScreen() {
       </View>
       {suggestedRestaurants.map((restaurant) => (
         <TouchableOpacity key={restaurant.id} style={styles.restaurantItem}>
-          <Image source={restaurant.img} style={styles.restaurantImage} />
+          {/* <Image source={restaurant.img} style={styles.restaurantImage} /> */}
+          <Image
+            source={{ uri: restaurant.img }}
+            style={styles.restaurantImage}
+          />
           <View style={styles.restaurantInfo}>
             <Text style={styles.restaurantName}>
               {restaurant.namerestaurant}
@@ -191,7 +240,8 @@ export default function SearchScreen() {
                 overflow: "visible",
               }}
             >
-              <Image source={item.img} style={styles.fastFoodImage} />
+              {/* <Image source={item.img} style={styles.fastFoodImage} /> */}
+              <Image source={{ uri: item.img }} style={styles.fastFoodImage} />
               <View style={styles.fastFoodInfo}>
                 <Text style={styles.fastFoodTitle}>{item.pizzaName}</Text>
                 <Text style={styles.fastFoodRestaurant}>

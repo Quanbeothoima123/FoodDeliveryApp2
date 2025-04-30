@@ -10,6 +10,7 @@ import SignUp from "./SignUp";
 import ForgotPassWord from "./ForgotPassWord";
 import VerificationScreen from "./Verification";
 import HomeVer1 from "./HomeVer1";
+import SearchScreen from "./Search";
 import { supabase } from "../../supabaseHelper/supabase";
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
@@ -73,7 +74,6 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {/* Gắn navigationRef */}
       <Stack.Navigator
         initialRouteName="Login"
         screenOptions={{ headerShown: false }}
@@ -83,6 +83,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ForgotPassWord" component={ForgotPassWord} />
         <Stack.Screen name="Verification" component={VerificationScreen} />
         <Stack.Screen name="HomeVer1" component={HomeVer1} />
+        <Stack.Screen name="SearchScreen" component={SearchScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
