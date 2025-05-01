@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,62 +10,100 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
+import { supabase } from "../../supabaseHelper/supabase";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import CustomButton from "../../components/CustomButton";
-
-const foodData = {
-  id: 1,
-  nameFood: "Pizza Calzone European",
-  imgFood: require("../../../assets/images/User/burger1.jpg"),
-  nameRestaurant: "Utora Coffee House",
-  description:
-    "Prosciutto e funghi is a pizza variety that is topped with tomato sauce.",
-  starRate: 4.7,
-  feeShip: "Free",
-  timeShip: "20 min",
-  sizeofFood: ['10"', '14"', '16"'],
-  ingredients: "salt, garlic, tor, chicken_drumstick, chili",
-  price: 32,
-};
-
-const ingredientImages = {
-  salt: require("../../../assets/images/User/salt.png"),
-  garlic: require("../../../assets/images/User/garlic.png"),
-  tor: require("../../../assets/images/User/tor.png"),
-  chicken_drumstick: require("../../../assets/images/User/chicken_drumstick.png"),
-  chili: require("../../../assets/images/User/chili.png"),
-  default: require("../../../assets/images/User/ingredient-placeholder.png"),
-};
 
 const FoodDetailScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const productId = route.params?.productId; // Nhận productId từ FoodScreen
+  const [product, setProduct] = useState(null);
+  const [ingredientsArray, setIngredientsArray] = useState([]);
   const [quantity, setQuantity] = useState(2);
-  const ingredientsArray = foodData.ingredients
-    .split(", ")
-    .map((item, index) => ({ id: index.toString(), name: item }));
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      // Lấy thông tin sản phẩm và nhà hàng
+      const { data: productData, error: productError } = await supabase
+        .from("product")
+        .select(
+          "*, restaurant(name, img, description, starrating, feeship, timeship)"
+        )
+        .eq("id", productId)
+        .single();
+
+      if (productError || !productData) {
+        console.log("Error fetching product:", productError);
+        return;
+      }
+
+      // Lấy hình ảnh nguyên liệu từ bảng ingredients
+      const { data: ingredientsData, error: ingredientsError } = await supabase
+        .from("ingredients")
+        .select("name, image")
+        .in("name", productData.ingredients || []);
+
+      if (ingredientsError) {
+        console.log("Error fetching ingredients:", ingredientsError);
+      }
+
+      setProduct({
+        id: productData.id,
+        nameFood: productData.name,
+        imgFood: productData.img,
+        nameRestaurant: productData.restaurant.name,
+        restaurantImage: productData.restaurant.img,
+        description: productData.restaurant.description,
+        starRate: productData.starrating || productData.restaurant.starrating,
+        feeShip:
+          productData.restaurant.feeship === 0
+            ? "Free"
+            : productData.restaurant.feeship,
+        timeShip: productData.restaurant.timeship,
+        sizeofFood: productData.size || [],
+        ingredients: productData.ingredients || [],
+        price: productData.price,
+      });
+
+      // Chuẩn bị dữ liệu nguyên liệu
+      setIngredientsArray(
+        (productData.ingredients || []).map((item, index) => ({
+          id: index.toString(),
+          name: item,
+          image:
+            ingredientsData?.find((ing) => ing.name === item)?.image ||
+            "https://via.placeholder.com/50", // Hình ảnh mặc định nếu không có
+        }))
+      );
+    };
+
+    if (productId) fetchProduct();
+  }, [productId]);
 
   const increaseQuantity = () => setQuantity((prev) => prev + 1);
   const decreaseQuantity = () =>
     setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
-  const renderIngredient = ({ item }) => {
-    const ingredientImage =
-      ingredientImages[item.name] || ingredientImages.default;
-    return (
-      <View style={styles.ingredientItem}>
-        <Image source={ingredientImage} style={styles.ingredientImage} />
-      </View>
-    );
-  };
+  const renderIngredient = ({ item }) => (
+    <View style={styles.ingredientItem}>
+      <Image source={{ uri: item.image }} style={styles.ingredientImage} />
+    </View>
+  );
 
-  const [selectedSize, setSelectedSize] = useState(foodData.sizeofFood[0]);
-  if (!fontsLoaded) return null;
+  const [selectedSize, setSelectedSize] = useState(
+    product?.sizeofFood?.[0] || '10"'
+  );
+
+  if (!fontsLoaded || !product) return null;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.headerContainer}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => console.log("Go back")}
+          onPress={() => navigation.goBack()}
         >
           <Icon name="chevron-back" size={24} color="#181C2E" />
         </TouchableOpacity>
@@ -73,7 +111,7 @@ const FoodDetailScreen = () => {
       </View>
 
       <View style={styles.imageContainer}>
-        <Image source={foodData.imgFood} style={styles.foodImage} />
+        <Image source={{ uri: product.imgFood }} style={styles.foodImage} />
         <TouchableOpacity style={styles.favoriteButton}>
           <Icon name="heart-outline" size={20} color="#FF6B6B" />
         </TouchableOpacity>
@@ -81,32 +119,32 @@ const FoodDetailScreen = () => {
 
       <View style={styles.infoContainer}>
         <View style={styles.restaurantContainer}>
-          <Image source={require("../../../assets/images/User/uttora.png")} />
-          <Text style={styles.restaurantName}>{foodData.nameRestaurant}</Text>
+          {/* <Image source={{ uri: product.restaurantImage }} /> */}
+          <Text style={styles.restaurantName}>{product.nameRestaurant}</Text>
         </View>
 
-        <Text style={styles.foodName}>{foodData.nameFood}</Text>
-        <Text style={styles.description}>{foodData.description}</Text>
+        <Text style={styles.foodName}>{product.nameFood}</Text>
+        <Text style={styles.description}>{product.description}</Text>
 
         <View style={styles.detailsContainer}>
           <View style={styles.detailItem}>
             <Icon name="star" size={16} color="#FF7622" />
-            <Text style={styles.detailTextStar}>{foodData.starRate}</Text>
+            <Text style={styles.detailTextStar}>{product.starRate}</Text>
           </View>
           <View style={styles.detailItem}>
             <Icon name="bicycle" size={16} color="#FF7622" />
-            <Text style={styles.detailText}>{foodData.feeShip}</Text>
+            <Text style={styles.detailText}>{product.feeShip}</Text>
           </View>
           <View style={styles.detailItem}>
             <Icon name="time-outline" size={16} color="#FF7622" />
-            <Text style={styles.detailText}>{foodData.timeShip}</Text>
+            <Text style={styles.detailText}>{product.timeShip}</Text>
           </View>
         </View>
 
         <View style={styles.sizeRow}>
           <Text style={styles.sectionTitle}>SIZE:</Text>
           <View style={styles.sizeContainer}>
-            {foodData.sizeofFood.map((size, index) => (
+            {product.sizeofFood.map((size, index) => (
               <TouchableOpacity
                 key={index}
                 onPress={() => setSelectedSize(size)}
@@ -141,7 +179,7 @@ const FoodDetailScreen = () => {
 
       <View style={styles.bottomWrapper}>
         <View style={styles.bottomBar}>
-          <Text style={styles.price}>${foodData.price}</Text>
+          <Text style={styles.price}>${product.price}</Text>
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               style={styles.quantityButton}
@@ -170,7 +208,6 @@ const FoodDetailScreen = () => {
     </ScrollView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -296,8 +333,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sizeButton: {
-    width: 48,
-    height: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     backgroundColor: "#F0F5FA",
     borderRadius: 24,
     marginRight: 10,

@@ -183,7 +183,12 @@ const FoodScreen = () => {
       <FlatList
         data={products}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.burgerItem}>
+          <TouchableOpacity
+            style={styles.burgerItem}
+            onPress={() =>
+              navigation.navigate("FoodDetail", { productId: item.burgerId })
+            }
+          >
             <View
               style={{
                 position: "relative",
