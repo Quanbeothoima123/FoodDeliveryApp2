@@ -11,6 +11,7 @@ import ForgotPassWord from "./ForgotPassWord";
 import VerificationScreen from "./Verification";
 import HomeVer1 from "./HomeVer1";
 import SearchScreen from "./Search";
+import FoodScreen from "./Food_B";
 import { supabase } from "../../supabaseHelper/supabase";
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
@@ -84,6 +85,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Verification" component={VerificationScreen} />
         <Stack.Screen name="HomeVer1" component={HomeVer1} />
         <Stack.Screen name="SearchScreen" component={SearchScreen} />
+        <Stack.Screen name="Food_B" component={FoodScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

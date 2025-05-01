@@ -14,53 +14,6 @@ import CartButton from "../../components/CartButton";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useNavigation } from "@react-navigation/native";
-// Update recentKeywords to include "Pumpkin"
-// const recentKeywords = [
-//   { id: 1, namecategory: "Burger" },
-//   { id: 2, namecategory: "Sandwich" },
-//   { id: 3, namecategory: "Pizza" },
-//   { id: 4, namecategory: "Salad" },
-//   { id: 5, namecategory: "Pumpkin" },
-// ];
-
-// Suggested Restaurants Data
-// const suggestedRestaurants = [
-//   {
-//     id: 1,
-//     img: require("../../../assets/images/User/pansi.jpg"),
-//     namerestaurant: "Pansi",
-//     starRate: 4.7,
-//   },
-//   {
-//     id: 2,
-//     img: require("../../../assets/images/User/american-spicy.jpg"),
-//     namerestaurant: "American Spicy Burger Shop",
-//     starRate: 4.3,
-//   },
-//   {
-//     id: 3,
-//     img: require("../../../assets/images/User/cafenio.jpg"),
-//     namerestaurant: "Cafenio Coffee Club",
-//     starRate: 4.0,
-//   },
-// ];
-
-// Popular Fast Food Data
-// const popularFastFood = [
-//   {
-//     id: 1,
-//     img: require("../../../assets/images/User/european-pizza.jpg"),
-//     pizzaName: "European Pizza",
-//     NameRestaurant: "Uttora Coffee House",
-//   },
-//   {
-//     id: 2,
-//     img: require("../../../assets/images/User/buffalo-pizza.jpg"),
-//     pizzaName: "Buffalo Pizza",
-//     NameRestaurant: "Cafenio Coffee Club",
-//   },
-// ];
-
 export default function SearchScreen() {
   const fontsLoaded = useCustomFonts();
   const navigation = useNavigation(); // Thêm dòng này
@@ -192,7 +145,12 @@ export default function SearchScreen() {
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.keywordItem}>
+          <TouchableOpacity
+            style={styles.keywordItem}
+            onPress={() =>
+              navigation.navigate("Food_B", { category: item.namecategory })
+            } // Thêm onPress
+          >
             <Text style={styles.keywordText}>{item.namecategory}</Text>
           </TouchableOpacity>
         )}

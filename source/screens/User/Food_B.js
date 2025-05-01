@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,86 +11,109 @@ import {
 import Icon from "react-native-vector-icons/Ionicons";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
-// Dữ liệu không thay đổi, giữ nguyên popularBurgers, restaurants, categories và renderBurgerItem
-const popularBurgers = [
-  {
-    burgerId: 1,
-    burgerName: "Burger Bistro",
-    restaurantName: "Rose Garden",
-    price: 40,
-    imageUrl: require("../../../assets/images/User/burger1.jpg"),
-  },
-  {
-    burgerId: 2,
-    burgerName: "Smokin' Burger",
-    restaurantName: "Cafenio Restaurant",
-    price: 60,
-    imageUrl: require("../../../assets/images/User/burger2.jpg"),
-  },
-  {
-    burgerId: 3,
-    burgerName: "Buffalo Burgers",
-    restaurantName: "Koji Film Kitchen",
-    price: 75,
-    imageUrl: require("../../../assets/images/User/burger3.jpg"),
-  },
-  {
-    burgerId: 4,
-    burgerName: "Bullseye Burgers",
-    restaurantName: "Kabob Restaurant",
-    price: 94,
-    imageUrl: require("../../../assets/images/User/burger4.jpg"),
-  },
-];
-
-const restaurants = [
-  {
-    id: 1,
-    nameRestaurant: "Rose Garden Restaurant",
-    image: require("../../../assets/images/User/rose-garden.jpg"),
-    description: "Burger - Chicken - Riche - Wings",
-    category: "Burger - Chicken - Riche - Wings",
-    starRate: 4.7,
-    feeShip: "Free",
-    timeShipping: "20 min",
-  },
-  {
-    id: 2,
-    nameRestaurant: "Healthy Bowl",
-    image: require("../../../assets/images/User/healthy-bowl.jpg"),
-    description: "Salad - Vegan - Healthy",
-    category: "Salad - Vegan - Healthy",
-    starRate: 4.5,
-    feeShip: "Free",
-    timeShipping: "25 min",
-  },
-];
-
-const categories = [
-  { id: 1, name: "BURGER" },
-  { id: 2, name: "PIZZA" },
-  { id: 3, name: "SALAD" },
-  { id: 4, name: "HOT-DOG" },
-];
-
-const renderBurgerItem = ({ item }) => (
-  <View style={styles.burgerItem}>
-    <Image source={item.imageUrl} style={styles.burgerImage} />
-    <Text style={styles.burgerName}>{item.burgerName}</Text>
-    <Text style={styles.restaurantName}>{item.restaurantName}</Text>
-    <View style={styles.priceContainer}>
-      <Text style={styles.price}>${item.price}</Text>
-      <TouchableOpacity style={styles.addButton}>
-        <Text style={styles.addButtonText}>+</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+import { supabase } from "../../supabaseHelper/supabase";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 const FoodScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+  const route = useRoute();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("BURGER");
+  const [selectedCategory, setSelectedCategory] = useState(
+    route.params?.category || "Burger"
+  );
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // Lấy danh mục
+      const { data: catData, error: catDataError } = await supabase
+        .from("category")
+        .select("*")
+        .order("order", { ascending: true });
+      if (catDataError) {
+        console.log("Error fetching categories:", catDataError);
+        return;
+      }
+      setCategories(catData);
+
+      // Lấy categoryid tương ứng với selectedCategory
+      let categoryId = null;
+      let prodQuery = supabase
+        .from("product")
+        .select("*, category(name), restaurant(name)");
+
+      if (selectedCategory !== "All") {
+        const { data: categoryData, error: catError } = await supabase
+          .from("category")
+          .select("id")
+          .ilike("name", selectedCategory) // Bỏ qua hoa thường
+          .single();
+
+        if (catError || !categoryData) {
+          console.log(
+            "Error fetching category or category not found:",
+            catError
+          );
+          setProducts([]);
+          setRestaurants([]);
+          return;
+        }
+
+        categoryId = categoryData.id;
+        prodQuery = prodQuery.eq("categoryid", categoryId);
+      }
+
+      const { data: prodData, error: prodError } = await prodQuery;
+      if (prodError) {
+        console.log("Error fetching products:", prodError);
+        setProducts([]);
+        setRestaurants([]);
+        return;
+      }
+      setProducts(
+        prodData?.map((prod) => ({
+          burgerId: prod.id,
+          burgerName: prod.name,
+          restaurantName: prod.restaurant.name,
+          price: prod.price,
+          imageUrl: prod.img,
+        })) || []
+      );
+
+      // Lấy danh sách restaurantid từ sản phẩm đã lọc
+      const restaurantIds = prodData?.map((prod) => prod.restaurantid) || [];
+
+      // Lấy nhà hàng
+      let resData = [];
+      if (restaurantIds.length > 0) {
+        const { data, error: resError } = await supabase
+          .from("restaurant")
+          .select("*")
+          .in("id", restaurantIds);
+        if (resError) {
+          console.log("Error fetching restaurants:", resError);
+        } else {
+          resData = data || [];
+        }
+      }
+      setRestaurants(
+        resData.map((res) => ({
+          id: res.id,
+          nameRestaurant: res.name,
+          image: res.img,
+          description: res.description,
+          category: res.category.join(" - "),
+          starRate: res.starrating,
+          feeShip: res.feeship === 0 ? "Free" : res.feeship,
+          timeShipping: res.timeship,
+        }))
+      );
+    };
+    fetchData();
+  }, [selectedCategory]);
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -100,14 +123,16 @@ const FoodScreen = () => {
     setSelectedCategory(category);
     setIsDropdownOpen(false);
   };
+
   if (!fontsLoaded) return null;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header được bọc trong ScrollView */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => console.log("Go back")}
+          onPress={() => navigation.goBack()}
         >
           <Icon name="chevron-back" size={24} color="#181C2E" />
         </TouchableOpacity>
@@ -126,7 +151,11 @@ const FoodScreen = () => {
             </Text>
           </TouchableOpacity>
           {isDropdownOpen && (
-            <View style={styles.dropdownMenu}>
+            <ScrollView
+              style={styles.dropdownMenu}
+              nestedScrollEnabled={true} // Cho phép cuộn độc lập
+              showsVerticalScrollIndicator={false}
+            >
               {categories
                 .filter((cat) => cat.name !== selectedCategory)
                 .map((item) => (
@@ -138,7 +167,7 @@ const FoodScreen = () => {
                     <Text style={styles.dropdownText}>{item.name}</Text>
                   </TouchableOpacity>
                 ))}
-            </View>
+            </ScrollView>
           )}
         </View>
         <TouchableOpacity style={styles.searchButton}>
@@ -149,10 +178,10 @@ const FoodScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Nội dung còn lại */}
-      <Text style={styles.sectionTitle}>Popular Burgers</Text>
+      {/* Popular Items */}
+      <Text style={styles.sectionTitle}>Popular {selectedCategory}</Text>
       <FlatList
-        data={popularBurgers}
+        data={products}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.burgerItem}>
             <View
@@ -162,10 +191,17 @@ const FoodScreen = () => {
                 overflow: "visible",
               }}
             >
-              <Image source={item.imageUrl} style={styles.burgerImage} />
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={styles.burgerImage}
+              />
               <View style={styles.burgerInfo}>
                 <Text style={styles.burgerName}>{item.burgerName}</Text>
-                <Text style={styles.restaurantNamePop}>
+                <Text
+                  style={styles.restaurantNamePop}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {item.restaurantName}
                 </Text>
                 <View
@@ -204,10 +240,14 @@ const FoodScreen = () => {
         scrollEnabled={false}
       />
 
+      {/* Open Restaurants */}
       <Text style={styles.sectionTitle}>Open Restaurants</Text>
       {restaurants.map((restaurant) => (
         <TouchableOpacity key={restaurant.id} style={styles.restaurantItem}>
-          <Image source={restaurant.image} style={styles.restaurantImage} />
+          <Image
+            source={{ uri: restaurant.image }}
+            style={styles.restaurantImage}
+          />
           <Text style={styles.restaurantName}>{restaurant.nameRestaurant}</Text>
           <Text style={styles.restaurantDescription}>
             {restaurant.description}
@@ -228,7 +268,6 @@ const FoodScreen = () => {
           </View>
         </TouchableOpacity>
       ))}
-      {/* Thêm padding dưới cùng để tránh nội dung bị cắt */}
       <View style={{ height: 20 }} />
     </ScrollView>
   );
@@ -262,6 +301,7 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     position: "relative",
     marginLeft: -25,
+    minWidth: 100,
   },
   dropdownButton: {
     flexDirection: "row",
@@ -371,7 +411,7 @@ const styles = StyleSheet.create({
   burgerName: {
     marginTop: 10,
     fontFamily: "Sen",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#32343E",
     textAlign: "left",

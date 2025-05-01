@@ -17,66 +17,18 @@ import FeatherIcon from "react-native-vector-icons/Feather";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
-// Dữ liệu mẫu cho Category
-// const categories = [
-//   {
-//     id: 1,
-//     namecategory: "All",
-//     image: require("../../../assets/images/User/fire.jpg"),
-//   },
-//   {
-//     id: 2,
-//     namecategory: "Hot Dog",
-//     image: require("../../../assets/images/User/hot-dog.jpg"),
-//   },
-//   {
-//     id: 3,
-//     namecategory: "Burger",
-//     image: require("../../../assets/images/User/burger.jpg"),
-//   },
-//   {
-//     id: 4,
-//     namecategory: "Pizza",
-//     image: require("../../../assets/images/User/pizza.jpg"),
-//   },
-// ];
-
-// Dữ liệu mẫu cho Restaurant
-// const restaurants = [
-//   {
-//     id: 1,
-//     nameRestaurant: "Rose Garden Restaurant",
-//     image: require("../../../assets/images/User/rose-garden.jpg"),
-//     description: "Burger - Chicken - Riche - Wings",
-//     category: "Burger - Chicken - Riche - Wings",
-//     starRate: 4.7,
-//     feeShip: "Free",
-//     timeShipping: "20 min",
-//   },
-//   {
-//     id: 2,
-//     nameRestaurant: "Healthy Bowl",
-//     image: require("../../../assets/images/User/healthy-bowl.jpg"),
-//     description: "Salad - Vegan - Healthy",
-//     category: "Salad - Vegan - Healthy",
-//     starRate: 4.5,
-//     feeShip: "Free",
-//     timeShipping: "25 min",
-//   },
-// ];
-
 export default function HomeVer1() {
   const fontsLoaded = useCustomFonts();
   const navigation = useNavigation(); // Thêm hook
   const [categories, setCategories] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
-
+  const [userName, setUserName] = useState("Đồng chí"); // Mặc định là "Halal"
   useEffect(() => {
     const fetchData = async () => {
       const { data: catData } = await supabase
         .from("category")
         .select("*")
-        .order("order", { ascending: true }); // Thêm sắp xếp theo order
+        .order("order", { ascending: true });
       const { data: resData } = await supabase.from("restaurant").select("*");
       setCategories(
         catData.map((cat) => ({
@@ -97,6 +49,19 @@ export default function HomeVer1() {
           timeShipping: res.timeship,
         }))
       );
+
+      const { data: userData, error } = await supabase.auth.getUser();
+      if (error) return;
+      const { data: profileData } = await supabase
+        .from("profile")
+        .select("fullname")
+        .eq("userid", userData.user.id)
+        .single();
+      if (profileData) {
+        const nameParts = profileData.fullname.split(" ");
+        const lastTwoWords = nameParts.slice(-2).join(" ");
+        setUserName(lastTwoWords);
+      }
     };
     fetchData();
   }, []);
@@ -128,7 +93,7 @@ export default function HomeVer1() {
 
       {/* Phần chào hỏi */}
       <Text style={styles.greetingText}>
-        <Text>Hey Halal, </Text>
+        <Text>Hey {userName}, </Text>
         <Text style={styles.timeText}>Good Afternoon!</Text>
       </Text>
 
@@ -152,7 +117,10 @@ export default function HomeVer1() {
       {/* Phần All Category với FlatList ngang */}
       <View style={styles.categoryHeader}>
         <Text style={styles.sectionTitle}>All Categories</Text>
-        <TouchableOpacity style={styles.seeAllButton}>
+        <TouchableOpacity
+          style={styles.seeAllButton}
+          onPress={() => navigation.navigate("Food_B", { category: "All" })} // Thêm onPress
+        >
           <Text style={styles.seeAllText}>See All</Text>
           <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
         </TouchableOpacity>
@@ -168,9 +136,12 @@ export default function HomeVer1() {
               styles.categoryItem,
               item.namecategory === "All" && styles.categoryItemActive,
             ]}
+            onPress={() =>
+              navigation.navigate("Food_B", { category: item.namecategory })
+            }
           >
             <Image
-              source={{ uri: item.image }} // Sửa thành uri
+              source={{ uri: item.image }}
               style={[
                 styles.categoryImage,
                 item.namecategory === "All" && styles.categoryImageActive,
@@ -323,11 +294,10 @@ const styles = StyleSheet.create({
   categoryItem: {
     flexDirection: "row",
     alignItems: "center",
-    width: 103,
     height: 60,
     marginRight: 15,
     paddingVertical: 5,
-    paddingHorizontal: 5,
+    paddingHorizontal: 10,
     borderRadius: 30,
     backgroundColor: "#F3f3f3",
     // Hiệu ứng đổ bóng mới

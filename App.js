@@ -1,14 +1,26 @@
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import AppNavigator from "./source/screens/User/AppNavigator";
+
+function Main() {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <AppNavigator />
+      <StatusBar style="auto" />
+    </View>
+  );
+}
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <AppNavigator />
-      </SafeAreaView>
+      <Main />
     </SafeAreaProvider>
   );
 }
@@ -16,7 +28,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 20,
     backgroundColor: "#FFFFFF",
   },
 });

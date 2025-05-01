@@ -34,6 +34,12 @@ export default function SignUp() {
       return;
     }
 
+    // Kiểm tra fullname và email không rỗng vì chúng là NOT NULL
+    if (!fullname || !email) {
+      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ họ tên và email!");
+      return;
+    }
+
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -48,15 +54,16 @@ export default function SignUp() {
 
     if (error) {
       Alert.alert("Lỗi đăng ký", error.message);
-    } else {
-      Alert.alert(
-        "Thành công",
-        "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản."
-      );
-      navigation.navigate("Login");
+      return;
     }
-  };
 
+    // Không cần chèn thủ công vào profile nữa, trigger sẽ xử lý
+    Alert.alert(
+      "Thành công",
+      "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản."
+    );
+    navigation.navigate("Login");
+  };
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={styles.container}>
