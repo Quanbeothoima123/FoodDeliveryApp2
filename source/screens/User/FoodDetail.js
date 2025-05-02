@@ -25,11 +25,10 @@ const FoodDetailScreen = () => {
 
   useEffect(() => {
     const fetchProduct = async () => {
-      // Lấy thông tin sản phẩm và nhà hàng
       const { data: productData, error: productError } = await supabase
         .from("product")
         .select(
-          "*, restaurant(name, img, description, starrating, feeship, timeship)"
+          "*, restaurant(id, name, img, description, starrating, feeship, timeship, category, more_image)"
         )
         .eq("id", productId)
         .single();
@@ -39,7 +38,6 @@ const FoodDetailScreen = () => {
         return;
       }
 
-      // Lấy hình ảnh nguyên liệu từ bảng ingredients
       const { data: ingredientsData, error: ingredientsError } = await supabase
         .from("ingredients")
         .select("name, image")
@@ -54,6 +52,7 @@ const FoodDetailScreen = () => {
         nameFood: productData.name,
         imgFood: productData.img,
         nameRestaurant: productData.restaurant.name,
+        restaurantId: productData.restaurant.id, // Thêm restaurantId
         restaurantImage: productData.restaurant.img,
         description: productData.restaurant.description,
         starRate: productData.starrating || productData.restaurant.starrating,
@@ -65,16 +64,17 @@ const FoodDetailScreen = () => {
         sizeofFood: productData.size || [],
         ingredients: productData.ingredients || [],
         price: productData.price,
+        category: productData.restaurant.category || [], // Thêm category
+        more_image: productData.restaurant.more_image || [], // Thêm more_image
       });
 
-      // Chuẩn bị dữ liệu nguyên liệu
       setIngredientsArray(
         (productData.ingredients || []).map((item, index) => ({
           id: index.toString(),
           name: item,
           image:
             ingredientsData?.find((ing) => ing.name === item)?.image ||
-            "https://via.placeholder.com/50", // Hình ảnh mặc định nếu không có
+            "https://via.placeholder.com/50",
         }))
       );
     };
@@ -118,10 +118,30 @@ const FoodDetailScreen = () => {
       </View>
 
       <View style={styles.infoContainer}>
-        <View style={styles.restaurantContainer}>
-          {/* <Image source={{ uri: product.restaurantImage }} /> */}
+        <TouchableOpacity
+          style={styles.restaurantContainer}
+          onPress={() =>
+            navigation.navigate("RestaurantScreen", {
+              restaurant: {
+                id: product.restaurantId, // Thêm restaurantId vào product
+                nameRestaurant: product.nameRestaurant,
+                image: product.restaurantImage,
+                description: product.description,
+                category: product.category || [], // Nếu có category
+                starRate: product.starRate,
+                feeShip: product.feeShip,
+                timeShipping: product.timeShip,
+                more_image: product.more_image || [], // Nếu có more_image
+              },
+            })
+          }
+        >
+          <Image
+            source={require("../../../assets/images/User/restaurant_icon.png")}
+            style={{ width: 24, height: 24 }}
+          />
           <Text style={styles.restaurantName}>{product.nameRestaurant}</Text>
-        </View>
+        </TouchableOpacity>
 
         <Text style={styles.foodName}>{product.nameFood}</Text>
         <Text style={styles.description}>{product.description}</Text>

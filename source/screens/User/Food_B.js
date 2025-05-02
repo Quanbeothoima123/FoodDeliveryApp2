@@ -105,10 +105,11 @@ const FoodScreen = () => {
           nameRestaurant: res.name,
           image: res.img,
           description: res.description,
-          category: res.category.join(" - "),
+          category: res.category, // Giữ nguyên mảng
           starRate: res.starrating,
           feeShip: res.feeship === 0 ? "Free" : res.feeship,
           timeShipping: res.timeship,
+          more_image: res.more_image || [], // Thêm more_image
         }))
       );
     };
@@ -248,7 +249,13 @@ const FoodScreen = () => {
       {/* Open Restaurants */}
       <Text style={styles.sectionTitle}>Open Restaurants</Text>
       {restaurants.map((restaurant) => (
-        <TouchableOpacity key={restaurant.id} style={styles.restaurantItem}>
+        <TouchableOpacity
+          key={restaurant.id}
+          style={styles.restaurantItem}
+          onPress={() =>
+            navigation.navigate("RestaurantScreen", { restaurant })
+          }
+        >
           <Image
             source={{ uri: restaurant.image }}
             style={styles.restaurantImage}

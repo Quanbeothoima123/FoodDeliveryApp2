@@ -43,10 +43,11 @@ export default function HomeVer1() {
           nameRestaurant: res.name,
           image: res.img,
           description: res.description,
-          category: res.category.join(" - "),
+          category: res.category, // Đã sửa ở câu hỏi trước để giữ nguyên mảng
           starRate: res.starrating,
           feeShip: res.feeship === 0 ? "Free" : res.feeship,
           timeShipping: res.timeship,
+          more_image: res.more_image, // Thêm trường more_image
         }))
       );
 
@@ -162,7 +163,13 @@ export default function HomeVer1() {
         </TouchableOpacity>
       </View>
       {restaurants.map((restaurant) => (
-        <TouchableOpacity key={restaurant.id} style={styles.restaurantItem}>
+        <TouchableOpacity
+          key={restaurant.id}
+          style={styles.restaurantItem}
+          onPress={
+            () => navigation.navigate("RestaurantScreen", { restaurant }) // Truyền dữ liệu restaurant
+          }
+        >
           <Image
             source={{ uri: restaurant.image }}
             style={styles.restaurantImage}

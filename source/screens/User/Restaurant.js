@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Dimensions,
   ScrollView,
 } from "react-native";
-import { useEffect } from "react";
 import Carousel from "react-native-reanimated-carousel";
 import Icon from "react-native-vector-icons/Ionicons";
 import FeatherIcon from "react-native-vector-icons/Feather";
@@ -17,75 +16,82 @@ import BackButton from "../../components/BackButtonProps";
 import MoreButton from "../../components/MoreButton";
 import FilterComponent from "../../components/FilterComponent";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
-import PromoModal from "../../components/ProModal";
-// Restaurant data with your image paths
-const restaurantData = {
-  id: 1,
-  image:
-    "../../../assets/images/User/healthy-bowl.jpg,../../../assets/images/User/pansi.jpg,../../../assets/images/User/restaurant3.jpg",
-  starRate: "4.7",
-  feeShip: "Free",
-  timeShiping: "20 min",
-  nameRestaurent: "Spicy restaurant",
-  description:
-    "Maecenas sed diam eget risus varius blandit sit amet non magna. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.",
-  category: "Burger,Sandwich,Pizza,Sanwi",
-};
-
-// Your popularBurgers data
-const popularBurgers = [
-  {
-    burgerId: 1,
-    burgerName: "Burger Bistro",
-    restaurantName: "Rose Garden",
-    price: 40,
-    imageUrl: require("../../../assets/images/User/burger1.jpg"),
-  },
-  {
-    burgerId: 2,
-    burgerName: "Smokin' Burger",
-    restaurantName: "Cafenio Restaurant",
-    price: 60,
-    imageUrl: require("../../../assets/images/User/burger2.jpg"),
-  },
-  {
-    burgerId: 3,
-    burgerName: "Buffalo Burgers",
-    restaurantName: "Koji Film Kitchen",
-    price: 75,
-    imageUrl: require("../../../assets/images/User/burger3.jpg"),
-  },
-  {
-    burgerId: 4,
-    burgerName: "Bullseye Burgers",
-    restaurantName: "Kabob Restaurant",
-    price: 94,
-    imageUrl: require("../../../assets/images/User/burger4.jpg"),
-  },
-];
+import { supabase } from "../../supabaseHelper/supabase";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 const RestaurantScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+  const route = useRoute();
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
-  const [activeCategory, setActiveCategory] = useState("Burger");
+  const [activeCategory, setActiveCategory] = useState("");
+  const [products, setProducts] = useState([]);
+  const [restaurant, setRestaurant] = useState(route.params?.restaurant || {});
+  const [categoryMap, setCategoryMap] = useState({});
 
-  // Define carousel items with static require statements
-  const carouselItems = [
-    { id: 1, image: require("../../../assets/images/User/healthy-bowl.jpg") },
-    { id: 2, image: require("../../../assets/images/User/pansi.jpg") },
-    { id: 3, image: require("../../../assets/images/User/restaurant3.jpg") },
-  ];
+  // Lấy danh sách sản phẩm từ Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      // Lấy danh sách category
+      const { data: categoryData, error: catError } = await supabase
+        .from("category")
+        .select("id, name");
+      if (!catError) {
+        const map = categoryData.reduce((acc, cat) => {
+          acc[cat.name] = cat.id;
+          return acc;
+        }, {});
+        setCategoryMap(map);
+      }
 
-  // Process categories
-  const categories = restaurantData.category
-    .split(",")
-    .map((cat) => cat.trim());
+      // Lấy danh sách sản phẩm
+      if (!restaurant.id) return;
+      const { data: productData, error } = await supabase
+        .from("product")
+        .select("*")
+        .eq("restaurantid", restaurant.id);
+      if (error) {
+        console.error("Error fetching products:", error);
+        return;
+      }
+      setProducts(
+        productData.map((product) => ({
+          productId: product.id,
+          productName: product.name,
+          price: product.price,
+          imageUrl: product.img,
+          categoryId: product.categoryid,
+        }))
+      );
+    };
+    fetchData();
+  }, [restaurant.id]);
+
+  // Chuẩn bị dữ liệu cho carousel từ more_image
+  const carouselItems = restaurant.more_image
+    ? restaurant.more_image.map((img, index) => ({
+        id: index + 1,
+        image: img,
+      }))
+    : [];
+
+  // Xử lý danh sách category
+  // Xử lý danh sách category
+  const categories = Array.isArray(restaurant.category)
+    ? restaurant.category.map((cat) => cat.trim())
+    : [];
+
+  useEffect(() => {
+    if (categories.length > 0 && !activeCategory) {
+      setActiveCategory(categories[0]); // Chọn category đầu tiên làm mặc định
+    }
+  }, [categories]);
 
   // Render carousel item
   const renderCarouselItem = ({ item }) => (
     <View style={styles.carouselItem}>
-      <Image source={item.image} style={styles.carouselImage} />
+      <Image source={{ uri: item.image }} style={styles.carouselImage} />
     </View>
   );
 
@@ -117,10 +123,7 @@ const RestaurantScreen = () => {
         return (
           <View
             key={index}
-            style={[
-              styles.dotWrapper,
-              isActive && styles.dotWrapperActive, // thêm viền nếu active
-            ]}
+            style={[styles.dotWrapper, isActive && styles.dotWrapperActive]}
           >
             <View
               style={[
@@ -133,7 +136,9 @@ const RestaurantScreen = () => {
       })}
     </View>
   );
+
   if (!fontsLoaded) return null;
+
   return (
     <ScrollView
       style={styles.container}
@@ -141,10 +146,7 @@ const RestaurantScreen = () => {
     >
       <FilterComponent
         visible={isFilterVisible}
-        onClose={() => {
-          console.log("Closing modal");
-          setIsFilterVisible(false);
-        }}
+        onClose={() => setIsFilterVisible(false)}
       />
       {/* Carousel */}
       <View style={styles.carouselContainer}>
@@ -162,16 +164,13 @@ const RestaurantScreen = () => {
           top={20}
           left={20}
           backgroundColor="#FFF"
-          onPress={() => console.log("Back pressed")}
+          onPress={() => navigation.goBack()}
         />
         <MoreButton
           top={20}
           right={20}
           backgroundColor="#FFF"
-          onPress={() => {
-            console.log("Opening modal");
-            setIsFilterVisible(true);
-          }}
+          onPress={() => setIsFilterVisible(true)}
         />
       </View>
 
@@ -180,23 +179,22 @@ const RestaurantScreen = () => {
         <View style={styles.ratingDelivery}>
           <View style={styles.ratingDeliveryRow}>
             <FeatherIcon name="star" size={20} color="#FF7622" />
-            <Text style={styles.rating}>{restaurantData.starRate}</Text>
+            <Text style={styles.rating}>{restaurant.starRate}</Text>
           </View>
           <View style={styles.ratingDeliveryRow}>
-            <Image source={require("../../../assets/images/User/truck.png")} />
-            <Text style={styles.delivery}>{restaurantData.feeShip}</Text>
+            <FeatherIcon name="truck" size={20} color="#FF7622" />
+            <Text style={styles.delivery}>
+              {restaurant.feeShip === "Free" ? "Free" : restaurant.feeShip}
+            </Text>
           </View>
-
           <View style={styles.ratingDeliveryRow}>
             <FeatherIcon name="clock" size={20} color="#FF7622" />
-            <Text style={styles.time}> {restaurantData.timeShiping}</Text>
+            <Text style={styles.time}>{restaurant.timeShipping}</Text>
           </View>
         </View>
 
-        <Text style={styles.restaurantName}>
-          {restaurantData.nameRestaurent}
-        </Text>
-        <Text style={styles.description}>{restaurantData.description}</Text>
+        <Text style={styles.restaurantName}>{restaurant.nameRestaurant}</Text>
+        <Text style={styles.description}>{restaurant.description}</Text>
       </View>
 
       {/* Categories */}
@@ -209,26 +207,41 @@ const RestaurantScreen = () => {
         contentContainerStyle={styles.categoriesContainer}
       />
       <View style={styles.categoryTitleCount}>
-        <Text style={styles.categoryTitleCountText}>Burgur (10)</Text>
+        <Text style={styles.categoryTitleCountText}>
+          {activeCategory} (
+          {
+            products.filter(
+              (product) => categoryMap[activeCategory] === product.categoryId
+            ).length
+          }
+          )
+        </Text>
       </View>
-      {/* Burgers */}
+      {/* Products */}
       <FlatList
-        data={popularBurgers}
+        data={products.filter(
+          (product) => categoryMap[activeCategory] === product.categoryId
+        )}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.burgerItem}>
-            <View
+          <View style={styles.burgerItem}>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("FoodDetail", {
+                  productId: item.productId,
+                })
+              }
               style={{
                 position: "relative",
                 alignItems: "center",
                 overflow: "visible",
               }}
             >
-              <Image source={item.imageUrl} style={styles.burgerImage} />
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={styles.burgerImage}
+              />
               <View style={styles.burgerInfo}>
-                <Text style={styles.burgerName}>{item.burgerName}</Text>
-                <Text style={styles.restaurantNamePop}>
-                  {item.restaurantName}
-                </Text>
+                <Text style={styles.burgerName}>{item.productName}</Text>
                 <View
                   style={{
                     flexDirection: "row",
@@ -237,32 +250,36 @@ const RestaurantScreen = () => {
                   }}
                 >
                   <Text style={styles.burgerPrice}>${item.price}</Text>
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: "#F58D1D",
-                      width: 30,
-                      height: 30,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 15,
-                    }}
-                  >
-                    <Icon name="add-outline" size={20} color="#ffffff" />
-                  </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                position: "relative",
+                bottom: 40,
+                right: -50,
+                backgroundColor: "#F58D1D",
+                width: 30,
+                height: 30,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 15,
+              }}
+              onPress={() => console.log("Add to cart:", item.productId)}
+            >
+              <Icon name="add-outline" size={20} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
         )}
-        keyExtractor={(item) => item.burgerId.toString()}
+        keyExtractor={(item) => item.productId.toString()}
         numColumns={2}
         columnWrapperStyle={{
           justifyContent: "space-between",
           paddingHorizontal: 10,
         }}
         contentContainerStyle={{ paddingBottom: 20 }}
-        scrollEnabled={false} // Disable FlatList scrolling to avoid conflicts
+        scrollEnabled={false}
       />
     </ScrollView>
   );
@@ -409,7 +426,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 15,
     paddingTop: 30,
-    width: 140,
+    // width: 140,
     height: 180,
   },
   burgerImage: {
@@ -421,7 +438,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   burgerInfo: {
-    width: 140,
+    minWidth: 140,
     height: 120,
     marginTop: 20,
     backgroundColor: "#ffffff",
@@ -439,7 +456,7 @@ const styles = StyleSheet.create({
   burgerName: {
     marginTop: 10,
     fontFamily: "Sen",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#32343E",
     textAlign: "left",

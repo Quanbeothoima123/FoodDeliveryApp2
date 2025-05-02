@@ -13,6 +13,7 @@ import HomeVer1 from "./HomeVer1";
 import SearchScreen from "./Search";
 import FoodScreen from "./Food_B";
 import FoodDetailScreen from "./FoodDetail";
+import RestaurantScreen from "./Restaurant";
 import { supabase } from "../../supabaseHelper/supabase";
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
@@ -88,6 +89,7 @@ export default function AppNavigator() {
         <Stack.Screen name="SearchScreen" component={SearchScreen} />
         <Stack.Screen name="Food_B" component={FoodScreen} />
         <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
+        <Stack.Screen name="RestaurantScreen" component={RestaurantScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
