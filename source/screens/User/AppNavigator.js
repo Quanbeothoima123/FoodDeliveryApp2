@@ -18,6 +18,10 @@ import RestaurantScreen from "./Restaurant";
 import CartScreen from "./CartScreen";
 import CartPayment from "./CardPayment";
 import AddCardScreen from "./AddCard";
+import PaymentSuccessScreen from "./PaymentSuccessful";
+import TrackingOrder from "./TrackingOrder";
+import CallScreen from "./CallShipper";
+import ChatScreen from "./MessageShipper";
 import { supabase } from "../../supabaseHelper/supabase";
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
@@ -98,6 +102,13 @@ export default function AppNavigator() {
           <Stack.Screen name="CartScreen" component={CartScreen} />
           <Stack.Screen name="Payment" component={CartPayment} />
           <Stack.Screen name="AddCardScreen" component={AddCardScreen} />
+          <Stack.Screen
+            name="PaymentSuccessScreen"
+            component={PaymentSuccessScreen}
+          />
+          <Stack.Screen name="TrackingOrder" component={TrackingOrder} />
+          <Stack.Screen name="CallScreen" component={CallScreen} />
+          <Stack.Screen name="ChatScreen" component={ChatScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </CartProvider>

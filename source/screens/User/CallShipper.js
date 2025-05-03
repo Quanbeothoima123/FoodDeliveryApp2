@@ -10,12 +10,13 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Ionicon from "react-native-vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 
 const CallScreen = () => {
   const fontsLoaded = useCustomFonts();
   const avatarUri = "../../../assets/images/User/shipper.jpg";
-
+  const navigation = useNavigation();
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
 
@@ -108,7 +109,10 @@ const CallScreen = () => {
                 ]}
               />
               {/* Nút đỏ */}
-              <TouchableOpacity style={styles.endCallButton}>
+              <TouchableOpacity
+                style={styles.endCallButton}
+                onPress={() => navigation.navigate("TrackingOrder")}
+              >
                 <Ionicon name="call-outline" size={30} color="#ffffff" />
               </TouchableOpacity>
             </View>

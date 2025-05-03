@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import MapView, { Polyline, Marker } from "react-native-maps";
 import {
   GestureHandlerRootView,
@@ -28,7 +29,7 @@ const { width } = Dimensions.get("window");
 const TrackingOrder = () => {
   const fontsLoaded = useCustomFonts();
   const translateY = useSharedValue(MIN_SHEET_HEIGHT);
-
+  const navigation = useNavigation();
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, ctx) => {
       ctx.startY = translateY.value;
@@ -82,7 +83,10 @@ const TrackingOrder = () => {
           />
         </MapView>
 
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("HomeVer1")}
+        >
           <Ionicon name="chevron-back" size={24} color="white" />
         </TouchableOpacity>
 
@@ -178,10 +182,16 @@ const TrackingOrder = () => {
                   <Text style={styles.courierName}>Robert F.</Text>
                   <Text style={styles.courierLabel}>Courier</Text>
                 </View>
-                <TouchableOpacity style={styles.callButton}>
+                <TouchableOpacity
+                  style={styles.callButton}
+                  onPress={() => navigation.navigate("CallScreen")}
+                >
                   <Ionicon name="call-outline" size={24} color="white" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.chatButton}>
+                <TouchableOpacity
+                  style={styles.chatButton}
+                  onPress={() => navigation.navigate("ChatScreen")}
+                >
                   <Image
                     source={require("../../../assets/images/User/messenger.png")}
                   />

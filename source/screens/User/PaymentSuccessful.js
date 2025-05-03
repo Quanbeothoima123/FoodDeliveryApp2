@@ -2,9 +2,14 @@ import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
+import { useNavigation } from "@react-navigation/native";
+
 const PaymentSuccessScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+
   if (!fontsLoaded) return null;
+
   return (
     <View style={styles.container}>
       <View style={styles.placeholderImage}>
@@ -26,7 +31,7 @@ const PaymentSuccessScreen = () => {
           title="TRACK ORDER"
           backgroundColor="#FF7622"
           textColor="#FFFFFF"
-          onPress={() => console.log("Add and make payment")}
+          onPress={() => navigation.navigate("TrackingOrder")}
         />
       </View>
     </View>

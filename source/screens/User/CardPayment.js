@@ -176,7 +176,7 @@ const CartPayment = () => {
       }
 
       Alert.alert("Thành công", "Thanh toán thành công!");
-      navigation.navigate("HomeVer1");
+      navigation.navigate("PaymentSuccessScreen");
     } catch (error) {
       console.log("Error:", error);
       Alert.alert("Lỗi", "Đã xảy ra lỗi, vui lòng thử lại");

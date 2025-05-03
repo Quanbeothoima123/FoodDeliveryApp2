@@ -11,7 +11,7 @@ import {
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import FeatherIcons from "react-native-vector-icons/Feather";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
 // Placeholder for the buyer's image
 const buyerImage = require("../../../assets/images/User/american-spicy.jpg");
 
@@ -43,6 +43,7 @@ const messages = [
 
 const ChatScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
   const renderMessage = ({ item }) => (
     <View
       style={
@@ -103,7 +104,10 @@ const ChatScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("TrackingOrder")}
+        >
           <MaterialIcons name="close" size={20} color="#181C2E" />
         </TouchableOpacity>
         <Text style={styles.headerText}>Robert Fox</Text>
