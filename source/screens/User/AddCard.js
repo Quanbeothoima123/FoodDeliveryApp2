@@ -8,85 +8,93 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { supabase } from "../../supabaseHelper/supabase";
 import CustomButton from "../../components/CustomButton";
+import { Alert } from "react-native";
 
 const AddCardScreen = () => {
   const fontsLoaded = useCustomFonts();
-  const [cardHolderName, setCardHolderName] = useState("Vishal Khadok");
-  const [cardNumber, setCardNumber] = useState(""); // sửa từ "214" về ""
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { paymentMethodId } = route.params; // Nhận payment_method_id từ CartPayment
+  const [cardHolderName, setCardHolderName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [cvc, setCvc] = useState("");
+  const { getUserId } = require("../../utils/authHelper");
 
-  // Format hiển thị card number
-  const formatCardNumberForDisplay = (value) => {
-    const digits = value.replace(/\D/g, "").substring(0, 16);
-    const formatted = digits.replace(/(.{4})/g, "$1 ").trim();
-    const remaining = 16 - digits.length;
-    const underscores = "_ ".repeat(remaining).trim();
-    return formatted + (remaining > 0 ? " " + underscores : "");
-  };
-
-  // Hàm format để hiển thị: "1234 5678 ____ ____"
-  const formatCardNumberWithUnderscore = (raw) => {
-    const digits = raw.replace(/\D/g, "").substring(0, 16);
-    let display = "";
-
-    for (let i = 0; i < 16; i++) {
-      if (i < digits.length) {
-        display += digits[i];
-      } else {
-        display += "_";
-      }
-
-      if ((i + 1) % 4 === 0 && i !== 15) {
-        display += " ";
-      }
-    }
-
-    return display;
-  };
   const handleCardNumberChange = (text) => {
-    // Chỉ lấy số
     const digits = text.replace(/\D/g, "").substring(0, 16);
-
-    // Format thành nhóm 4 số
     const formatted = digits.replace(/(.{4})/g, "$1 ").trim();
-
     setCardNumber(formatted);
   };
 
   const handleExpiryDateChange = (text) => {
     let digits = text.replace(/\D/g, "").substring(0, 6);
-
     if (digits.length < 2) {
       setExpiryDate(digits);
       return;
     }
-
     let month = parseInt(digits.substring(0, 2), 10);
-
-    if (month > 12) {
-      month = 12;
-    } else if (month < 1) {
-      month = 1;
-    }
-
+    if (month > 12) month = 12;
+    else if (month < 1) month = 1;
     const monthStr = month.toString().padStart(2, "0");
     let year = digits.substring(2, 6);
     const currentYear = 2025;
     const maxYear = 2030;
-
     if (year.length === 4) {
       const yearNum = parseInt(year, 10);
-      if (yearNum < currentYear) {
-        year = currentYear.toString();
-      } else if (yearNum > maxYear) {
-        year = maxYear.toString();
-      }
+      if (yearNum < currentYear) year = currentYear.toString();
+      else if (yearNum > maxYear) year = maxYear.toString();
     }
-
     const formatted = year ? `${monthStr}/${year}` : `${monthStr}/`;
     setExpiryDate(formatted);
+  };
+
+  const handleAddAndMakePayment = async () => {
+    if (!cardHolderName || !cardNumber || !expiryDate || !cvc) {
+      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin thẻ");
+      return;
+    }
+    if (!paymentMethodId) {
+      Alert.alert("Lỗi", "Phương thức thanh toán không hợp lệ");
+      return;
+    }
+    try {
+      const userid = await getUserId();
+      if (!userid) {
+        navigation.navigate("LoginScreen");
+        return;
+      }
+      const { data: newCard, error } = await supabase
+        .from("card_payment_info")
+        .insert([
+          {
+            userid,
+            payment_method_id: paymentMethodId,
+            card_holder_name: cardHolderName,
+            card_number: cardNumber.replace(/\s/g, ""),
+            expire_date: expiryDate,
+            cvc,
+          },
+        ])
+        .select("id")
+        .single();
+      if (error) {
+        console.log("Error adding card:", error);
+        Alert.alert("Lỗi", "Không thể thêm thẻ");
+        return;
+      }
+      Alert.alert("Thành công", "Thẻ đã được thêm!");
+      navigation.navigate("Payment", {
+        orderId: route.params.orderId,
+        newCardId: newCard.id, // Truyền ID thẻ mới
+      });
+    } catch (error) {
+      console.log("Error:", error);
+      Alert.alert("Lỗi", "Đã xảy ra lỗi, vui lòng thử lại");
+    }
   };
 
   if (!fontsLoaded) return null;
@@ -96,7 +104,7 @@ const AddCardScreen = () => {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => console.log("Close")}
+          onPress={() => navigation.goBack()}
         >
           <Icon name="close" size={24} color="#181C2E" />
         </TouchableOpacity>
@@ -119,7 +127,7 @@ const AddCardScreen = () => {
           onChangeText={handleCardNumberChange}
           placeholder="**** **** **** ****"
           keyboardType="numeric"
-          maxLength={19} // 16 số + 3 khoảng trắng
+          maxLength={19}
         />
 
         <View style={styles.row}>
@@ -154,7 +162,7 @@ const AddCardScreen = () => {
           title="ADD & MAKE PAYMENT"
           backgroundColor="#FF7622"
           textColor="#FFFFFF"
-          onPress={() => console.log("Add and make payment")}
+          onPress={handleAddAndMakePayment}
         />
       </View>
     </View>

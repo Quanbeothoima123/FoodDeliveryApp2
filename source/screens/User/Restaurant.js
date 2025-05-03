@@ -8,6 +8,7 @@ import {
   FlatList,
   Dimensions,
   ScrollView,
+  Alert,
 } from "react-native";
 import Carousel from "react-native-reanimated-carousel";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -18,6 +19,8 @@ import FilterComponent from "../../components/FilterComponent";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { getUserId } from "../../utils/authHelper";
+import { useCart } from "../../utils/CartContext";
 
 const RestaurantScreen = () => {
   const fontsLoaded = useCustomFonts();
@@ -29,7 +32,7 @@ const RestaurantScreen = () => {
   const [products, setProducts] = useState([]);
   const [restaurant, setRestaurant] = useState(route.params?.restaurant || {});
   const [categoryMap, setCategoryMap] = useState({});
-
+  const { fetchCartCount } = useCart();
   // Lấy danh sách sản phẩm từ Supabase
   useEffect(() => {
     const fetchData = async () => {
@@ -266,7 +269,69 @@ const RestaurantScreen = () => {
                 justifyContent: "center",
                 borderRadius: 15,
               }}
-              onPress={() => console.log("Add to cart:", item.productId)}
+              onPress={async () => {
+                try {
+                  const userid = await getUserId();
+                  if (!userid) {
+                    navigation.navigate("LoginScreen");
+                    return;
+                  }
+
+                  // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
+                  const { data: existingItem, error: fetchError } =
+                    await supabase
+                      .from("cart")
+                      .select("id, quantity")
+                      .eq("userid", userid)
+                      .eq("productid", item.productId)
+                      .single();
+
+                  if (fetchError && fetchError.code !== "PGRST116") {
+                    // PGRST116 là lỗi "không tìm thấy bản ghi", bỏ qua
+                    console.log("Error checking cart:", fetchError);
+                    return;
+                  }
+
+                  if (existingItem) {
+                    // Nếu sản phẩm đã có, tăng quantity
+                    const newQuantity = existingItem.quantity + 1;
+                    const { error: updateError } = await supabase
+                      .from("cart")
+                      .update({ quantity: newQuantity })
+                      .eq("id", existingItem.id);
+
+                    if (updateError) {
+                      console.log("Error updating quantity:", updateError);
+                      return;
+                    }
+                  } else {
+                    // Nếu sản phẩm chưa có, thêm mới
+                    const { error: insertError } = await supabase
+                      .from("cart")
+                      .insert([
+                        {
+                          userid,
+                          productid: item.productId,
+                          quantity: 1,
+                        },
+                      ]);
+
+                    if (insertError) {
+                      console.log("Error adding to cart:", insertError);
+                      return;
+                    }
+                  }
+
+                  // Cập nhật badgeCount
+                  const count = await fetchCartCount(userid);
+                  console.log("Updated cart count after add:", count);
+
+                  // Hiển thị thông báo
+                  Alert.alert("Thành công", "Đã thêm vào giỏ hàng!");
+                } catch (error) {
+                  console.log("Error:", error);
+                }
+              }}
             >
               <Icon name="add-outline" size={20} color="#ffffff" />
             </TouchableOpacity>

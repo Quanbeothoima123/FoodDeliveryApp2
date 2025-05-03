@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -15,57 +15,133 @@ import MenuButton from "../../components/MenuButton";
 import CartButton from "../../components/CartButton";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { supabase } from "../../supabaseHelper/supabase";
-import { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
+import { getUserId } from "../../utils/authHelper";
+import { useCart } from "../../utils/CartContext";
+
 export default function HomeVer1() {
   const fontsLoaded = useCustomFonts();
-  const navigation = useNavigation(); // Thêm hook
+  const navigation = useNavigation();
+  const { fetchCartCount } = useCart(); // Lấy fetchCartCount từ Context
   const [categories, setCategories] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
-  const [userName, setUserName] = useState("Đồng chí"); // Mặc định là "Halal"
+  const [userName, setUserName] = useState("Đồng chí");
+  const [badgeCount, setBadgeCount] = useState(0);
+
   useEffect(() => {
     const fetchData = async () => {
-      const { data: catData } = await supabase
-        .from("category")
-        .select("*")
-        .order("order", { ascending: true });
-      const { data: resData } = await supabase.from("restaurant").select("*");
-      setCategories(
-        catData.map((cat) => ({
-          id: cat.id,
-          namecategory: cat.name,
-          image: cat.descrip,
-        }))
-      );
-      setRestaurants(
-        resData.map((res) => ({
-          id: res.id,
-          nameRestaurant: res.name,
-          image: res.img,
-          description: res.description,
-          category: res.category, // Đã sửa ở câu hỏi trước để giữ nguyên mảng
-          starRate: res.starrating,
-          feeShip: res.feeship === 0 ? "Free" : res.feeship,
-          timeShipping: res.timeship,
-          more_image: res.more_image, // Thêm trường more_image
-        }))
-      );
+      try {
+        // Truy vấn category
+        const { data: catData } = await supabase
+          .from("category")
+          .select("*")
+          .order("order", { ascending: true });
 
-      const { data: userData, error } = await supabase.auth.getUser();
-      if (error) return;
-      const { data: profileData } = await supabase
-        .from("profile")
-        .select("fullname")
-        .eq("userid", userData.user.id)
-        .single();
-      if (profileData) {
-        const nameParts = profileData.fullname.split(" ");
-        const lastTwoWords = nameParts.slice(-2).join(" ");
-        setUserName(lastTwoWords);
+        // Truy vấn restaurant
+        const { data: resData } = await supabase.from("restaurant").select("*");
+
+        // Cập nhật state cho categories
+        setCategories(
+          catData.map((cat) => ({
+            id: cat.id,
+            namecategory: cat.name,
+            image: cat.descrip,
+          }))
+        );
+
+        // Cập nhật state cho restaurants
+        setRestaurants(
+          resData.map((res) => ({
+            id: res.id,
+            nameRestaurant: res.name,
+            image: res.img,
+            description: res.description,
+            category: res.category,
+            starRate: res.starrating,
+            feeShip: res.feeship === 0 ? "Free" : res.feeship,
+            timeShipping: res.timeship,
+            more_image: res.more_image,
+          }))
+        );
+
+        // Lấy userid và đếm giỏ hàng
+        const userid = await getUserId();
+        if (userid) {
+          console.log("User ID:", userid);
+          const count = await fetchCartCount(userid);
+          setBadgeCount(count);
+
+          // Lắng nghe thay đổi trong bảng cart
+          const subscription = supabase
+            .channel(`cart-changes-${userid}`)
+            .on(
+              "postgres_changes",
+              {
+                event: "*",
+                schema: "public",
+                table: "cart",
+                filter: `userid=eq.${userid}`,
+              },
+              (payload) => {
+                console.log("Cart changed:", payload);
+                fetchCartCount(userid).then((newCount) => {
+                  console.log("Realtime updated cart count:", newCount);
+                  setBadgeCount(newCount);
+                });
+              }
+            )
+            .subscribe((status) => {
+              console.log("Subscription status:", status);
+            });
+
+          // Dọn dẹp subscription
+          return () => {
+            console.log("Unsubscribing from cart-changes");
+            supabase.removeChannel(subscription);
+          };
+        } else {
+          setBadgeCount(0);
+        }
+
+        // Lấy thông tin người dùng
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
+        if (userError) {
+          console.log("Error fetching user:", userError);
+          return;
+        }
+
+        const { data: profileData } = await supabase
+          .from("profile")
+          .select("fullname")
+          .eq("userid", userData.user.id)
+          .single();
+
+        if (profileData) {
+          const nameParts = profileData.fullname.split(" ");
+          const lastTwoWords = nameParts.slice(-2).join(" ");
+          setUserName(lastTwoWords);
+        }
+      } catch (error) {
+        console.log("Error:", error);
       }
     };
+
     fetchData();
-  }, []);
+
+    // Cập nhật badgeCount khi màn hình được focus
+    const unsubscribe = navigation.addListener("focus", async () => {
+      const userid = await getUserId();
+      if (userid) {
+        const count = await fetchCartCount(userid);
+        console.log("Focus updated cart count:", count);
+        setBadgeCount(count);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigation, fetchCartCount]);
+
   if (!fontsLoaded) return null;
 
   return (
@@ -87,8 +163,15 @@ export default function HomeVer1() {
         </View>
         <CartButton
           backgroundColor="#181C2E"
-          onPress={() => console.log("Open cart")}
-          badgeCount={2}
+          onPress={async () => {
+            const userid = await getUserId();
+            if (!userid) {
+              navigation.navigate("LoginScreen");
+            } else {
+              navigation.navigate("CartScreen");
+            }
+          }}
+          badgeCount={badgeCount}
         />
       </View>
 
@@ -98,7 +181,6 @@ export default function HomeVer1() {
         <Text style={styles.timeText}>Good Afternoon!</Text>
       </Text>
 
-      {/* Thanh tìm kiếm */}
       {/* Thanh tìm kiếm */}
       <View style={styles.searchContainer}>
         <TouchableOpacity onPress={() => navigation.navigate("SearchScreen")}>
@@ -120,7 +202,7 @@ export default function HomeVer1() {
         <Text style={styles.sectionTitle}>All Categories</Text>
         <TouchableOpacity
           style={styles.seeAllButton}
-          onPress={() => navigation.navigate("Food_B", { category: "All" })} // Thêm onPress
+          onPress={() => navigation.navigate("Food_B", { category: "All" })}
         >
           <Text style={styles.seeAllText}>See All</Text>
           <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
@@ -166,8 +248,8 @@ export default function HomeVer1() {
         <TouchableOpacity
           key={restaurant.id}
           style={styles.restaurantItem}
-          onPress={
-            () => navigation.navigate("RestaurantScreen", { restaurant }) // Truyền dữ liệu restaurant
+          onPress={() =>
+            navigation.navigate("RestaurantScreen", { restaurant })
           }
         >
           <Image
@@ -197,7 +279,6 @@ export default function HomeVer1() {
     </ScrollView>
   );
 }
-
 const styles = StyleSheet.create({
   scrollContainer: {
     paddingTop: 20,

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,38 +10,148 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { supabase } from "../../supabaseHelper/supabase";
 import CustomButton from "../../components/CustomButton";
+import { Alert } from "react-native";
 
 const CartPayment = () => {
   const fontsLoaded = useCustomFonts();
-  const [selectedMethod, setSelectedMethod] = useState(3); // Default selected method (Mastercard)
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { orderId } = route.params;
+  const [selectedMethod, setSelectedMethod] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [cardInfo, setCardInfo] = useState([]);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const { getUserId } = require("../../utils/authHelper");
 
-  const paymentMethods = [
-    {
-      id: 1,
-      method: "cash",
-      image: require("../../../assets/images/User/cash.png"),
-      name: "Cash",
-    },
-    {
-      id: 2,
-      method: "visa",
-      image: require("../../../assets/images/User/visa2.png"),
-      name: "Visa",
-    },
-    {
-      id: 3,
-      method: "mastercard",
-      image: require("../../../assets/images/User/master.png"),
-      name: "Mastercard",
-    },
-    {
-      id: 4,
-      method: "paypal",
-      image: require("../../../assets/images/User/paypal.png"),
-      name: "PayPal",
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const userid = await getUserId();
+        if (!userid) {
+          navigation.navigate("LoginScreen");
+          return;
+        }
+
+        const { data: methods, error: methodError } = await supabase
+          .from("payment_method")
+          .select("id, name, img, order_number")
+          .order("order_number", { ascending: true });
+
+        if (methodError) {
+          console.log("Error fetching payment methods:", methodError);
+          return;
+        }
+
+        const formattedMethods = methods.map((method) => ({
+          id: method.id,
+          method: method.name.toLowerCase(),
+          image: { uri: method.img || "https://via.placeholder.com/22" },
+          name: method.name,
+        }));
+
+        setPaymentMethods(formattedMethods);
+        setSelectedMethod(
+          route.params?.paymentMethodId || formattedMethods[0]?.id || null
+        );
+
+        // Lấy card_payment_info, lọc theo payment_method_id nếu selectedMethod có
+        const query = supabase
+          .from("card_payment_info")
+          .select(
+            "id, payment_method_id, card_holder_name, card_number, expire_date, cvc"
+          )
+          .eq("userid", userid);
+        if (selectedMethod) {
+          query.eq("payment_method_id", selectedMethod);
+        }
+        const { data: cardData, error: cardError } = await query.order("id", {
+          ascending: true,
+        });
+
+        if (cardError) {
+          console.log("Error fetching card info:", cardError);
+          return;
+        }
+
+        setCardInfo(cardData);
+        setSelectedCard(route.params?.newCardId || cardData[0]?.id || null);
+
+        const { data: orderData, error: orderError } = await supabase
+          .from("order")
+          .select("total")
+          .eq("id", orderId)
+          .single();
+
+        if (orderError) {
+          console.log("Error fetching order total:", orderError);
+          return;
+        }
+
+        setTotal(orderData.total);
+      } catch (error) {
+        console.log("Error:", error);
+      }
+    };
+
+    fetchData();
+  }, [orderId, route.params?.newCardId, selectedMethod]);
+  const handlePayAndConfirm = async () => {
+    if (!selectedMethod) {
+      Alert.alert("Lỗi", "Vui lòng chọn phương thức thanh toán");
+      return;
+    }
+    const isCash =
+      paymentMethods
+        .find((m) => m.id === selectedMethod)
+        ?.name.toLowerCase() === "cash";
+    if (!isCash && cardInfo.length === 0) {
+      Alert.alert("Lỗi", "Vui lòng thêm thẻ mới để thanh toán");
+      return;
+    }
+    if (!isCash && cardInfo.length > 0 && !selectedCard) {
+      Alert.alert("Lỗi", "Vui lòng chọn một thẻ để thanh toán");
+      return;
+    }
+    try {
+      // Lấy ID trạng thái "Đang giao"
+      const { data: statusData, error: statusError } = await supabase
+        .from("status")
+        .select("id")
+        .eq("name", "Đang giao")
+        .single();
+      if (statusError || !statusData) {
+        console.log("Error fetching status:", statusError);
+        Alert.alert("Lỗi", "Không thể lấy trạng thái đơn hàng");
+        return;
+      }
+      const statusId = statusData.id;
+
+      const { error } = await supabase
+        .from("order")
+        .update({
+          payment_method: selectedMethod,
+          is_payment: true,
+          status: statusId, // Cập nhật trạng thái
+        })
+        .eq("id", orderId);
+
+      if (error) {
+        console.log("Error updating order:", error);
+        Alert.alert("Lỗi", "Không thể hoàn tất thanh toán");
+        return;
+      }
+
+      Alert.alert("Thành công", "Thanh toán thành công!");
+      navigation.navigate("HomeVer1");
+    } catch (error) {
+      console.log("Error:", error);
+      Alert.alert("Lỗi", "Đã xảy ra lỗi, vui lòng thử lại");
+    }
+  };
 
   const renderPaymentMethod = ({ item }) => (
     <View style={styles.methodWrapper}>
@@ -76,7 +186,7 @@ const CartPayment = () => {
         <View style={styles.HeaderButton}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => console.log("Go back")}
+            onPress={() => navigation.goBack()}
           >
             <Icon name="chevron-back" size={24} color="#181C2E" />
           </TouchableOpacity>
@@ -93,23 +203,60 @@ const CartPayment = () => {
           />
         </View>
 
-        {/* New block to display selected Mastercard details */}
-        <View style={styles.cardDetailsContainer}>
-          <View style={styles.cardDetailsRow}>
-            <Image
-              source={require("../../../assets/images/User/MastercardBlack.png")}
-              style={styles.cardIcon}
-              resizeMode="contain"
-            />
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>Master Card</Text>
-              <Text style={styles.cardNumber}>**** **** **** 436</Text>
-            </View>
-            <Icon name="caret-down" size={16} color="#181C2E" />
+        {selectedMethod && (
+          <View style={styles.cardDetailsContainer}>
+            {cardInfo.length > 0 ? (
+              cardInfo.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.cardDetailsRow,
+                    selectedCard === item.id && { backgroundColor: "#FFEFE8" },
+                  ]}
+                  onPress={() => setSelectedCard(item.id)}
+                >
+                  <Image
+                    source={
+                      paymentMethods.find(
+                        (m) => m.id === item.payment_method_id
+                      )?.image
+                    }
+                    style={styles.cardIcon}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.cardTextContainer}>
+                    <Text style={styles.cardTitle}>
+                      {
+                        paymentMethods.find(
+                          (m) => m.id === item.payment_method_id
+                        )?.name
+                      }
+                    </Text>
+                    <Text style={styles.cardNumber}>
+                      **** **** **** {item.card_number.slice(-4)}
+                    </Text>
+                  </View>
+                  {selectedCard === item.id && (
+                    <Icon name="checkmark-circle" size={16} color="#FF7622" />
+                  )}
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.cardDetailsRow}>
+                <Text style={styles.cardNumber}>Không có thẻ thanh toán</Text>
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() =>
+            navigation.navigate("AddCardScreen", {
+              paymentMethodId: selectedMethod,
+            })
+          }
+        >
           <Text style={styles.addButtonText}>+ ADD NEW</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -133,7 +280,7 @@ const CartPayment = () => {
             >
               TOTAL:
             </Text>
-            <Text style={styles.totalText}> $96</Text>
+            <Text style={styles.totalText}> ${total}</Text>
           </View>
         </View>
 
@@ -141,13 +288,12 @@ const CartPayment = () => {
           title="PAY & CONFIRM"
           backgroundColor="#FF7622"
           textColor="#FFFFFF"
-          onPress={() => console.log("Next")}
+          onPress={handlePayAndConfirm}
         />
       </View>
     </View>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

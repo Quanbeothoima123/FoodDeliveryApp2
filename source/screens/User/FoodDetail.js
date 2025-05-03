@@ -13,7 +13,8 @@ import { useCustomFonts } from "../../hooks/useCustomFonts";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import CustomButton from "../../components/CustomButton";
-
+import { getUserId } from "../../utils/authHelper";
+import { useCart } from "../../utils/CartContext";
 const FoodDetailScreen = () => {
   const fontsLoaded = useCustomFonts();
   const navigation = useNavigation();
@@ -22,7 +23,7 @@ const FoodDetailScreen = () => {
   const [product, setProduct] = useState(null);
   const [ingredientsArray, setIngredientsArray] = useState([]);
   const [quantity, setQuantity] = useState(2);
-
+  const { fetchCartCount } = useCart();
   useEffect(() => {
     const fetchProduct = async () => {
       const { data: productData, error: productError } = await supabase
@@ -95,7 +96,36 @@ const FoodDetailScreen = () => {
   const [selectedSize, setSelectedSize] = useState(
     product?.sizeofFood?.[0] || '10"'
   );
+  const addToCart = async () => {
+    try {
+      const userid = await getUserId();
+      if (!userid) {
+        navigation.navigate("LoginScreen");
+        return;
+      }
 
+      const { error } = await supabase.from("cart").insert([
+        {
+          userid,
+          productid: product.id,
+          quantity,
+        },
+      ]);
+
+      if (error) {
+        console.log("Error adding to cart:", error);
+        return;
+      }
+
+      // Cập nhật badgeCount
+      const count = await fetchCartCount(userid);
+      console.log("Updated cart count after add:", count);
+
+      navigation.navigate("CartScreen");
+    } catch (error) {
+      console.log("Error:", error);
+    }
+  };
   if (!fontsLoaded || !product) return null;
 
   return (
@@ -218,10 +248,10 @@ const FoodDetailScreen = () => {
         </View>
         <View style={styles.buttonWrapper}>
           <CustomButton
-            title="Next"
+            title="ADD TO CART"
             backgroundColor="#FF7622"
             textColor="#FFFFFF"
-            onPress={() => console.log("Next")}
+            onPress={addToCart}
           />
         </View>
       </View>

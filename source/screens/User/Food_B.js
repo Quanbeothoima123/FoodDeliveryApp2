@@ -7,13 +7,15 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useNavigation, useRoute } from "@react-navigation/native";
-
+import { getUserId } from "../../utils/authHelper";
+import { useCart } from "../../utils/CartContext";
 const FoodScreen = () => {
   const fontsLoaded = useCustomFonts();
   const navigation = useNavigation();
@@ -25,7 +27,7 @@ const FoodScreen = () => {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
-
+  const { fetchCartCount } = useCart();
   useEffect(() => {
     const fetchData = async () => {
       // Lấy danh mục
@@ -228,6 +230,72 @@ const FoodScreen = () => {
                       justifyContent: "center",
                       borderRadius: 15,
                     }}
+                    onPress={async () => {
+                      try {
+                        const userid = await getUserId();
+                        if (!userid) {
+                          navigation.navigate("LoginScreen");
+                          return;
+                        }
+
+                        // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
+                        const { data: existingItem, error: fetchError } =
+                          await supabase
+                            .from("cart")
+                            .select("id, quantity")
+                            .eq("userid", userid)
+                            .eq("productid", item.burgerId)
+                            .single();
+
+                        if (fetchError && fetchError.code !== "PGRST116") {
+                          // PGRST116 là lỗi "không tìm thấy bản ghi"
+                          console.log("Error checking cart:", fetchError);
+                          return;
+                        }
+
+                        if (existingItem) {
+                          // Nếu sản phẩm đã có, tăng quantity
+                          const newQuantity = existingItem.quantity + 1;
+                          const { error: updateError } = await supabase
+                            .from("cart")
+                            .update({ quantity: newQuantity })
+                            .eq("id", existingItem.id);
+
+                          if (updateError) {
+                            console.log(
+                              "Error updating quantity:",
+                              updateError
+                            );
+                            return;
+                          }
+                        } else {
+                          // Nếu sản phẩm chưa có, thêm mới
+                          const { error: insertError } = await supabase
+                            .from("cart")
+                            .insert([
+                              {
+                                userid,
+                                productid: item.burgerId,
+                                quantity: 1,
+                              },
+                            ]);
+
+                          if (insertError) {
+                            console.log("Error adding to cart:", insertError);
+                            return;
+                          }
+                        }
+
+                        // Cập nhật badgeCount
+                        const count = await fetchCartCount(userid);
+                        console.log("Updated cart count after add:", count);
+
+                        // Hiển thị thông báo
+                        Alert.alert("Thành công", "Đã thêm vào giỏ hàng!");
+                      } catch (error) {
+                        console.log("Error:", error);
+                      }
+                    }}
                   >
                     <Icon name="add-outline" size={20} color="#ffffff" />
                   </TouchableOpacity>
@@ -391,7 +459,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     paddingTop: 30, // Để ảnh nổi không bị cắt
     width: 140,
-    height: 180,
+    minHeight: 190,
   },
 
   burgerImage: {
@@ -405,7 +473,7 @@ const styles = StyleSheet.create({
 
   burgerInfo: {
     width: 140,
-    height: 120,
+    minHeight: 130,
     marginTop: 20,
     backgroundColor: "#ffffff",
     borderRadius: 20,

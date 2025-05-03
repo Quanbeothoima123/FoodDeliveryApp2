@@ -5,6 +5,7 @@ import {
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useEffect } from "react";
 import { Linking } from "react-native";
+import { CartProvider } from "../../utils/CartContext";
 import Login from "./Login";
 import SignUp from "./SignUp";
 import ForgotPassWord from "./ForgotPassWord";
@@ -14,6 +15,9 @@ import SearchScreen from "./Search";
 import FoodScreen from "./Food_B";
 import FoodDetailScreen from "./FoodDetail";
 import RestaurantScreen from "./Restaurant";
+import CartScreen from "./CartScreen";
+import CartPayment from "./CardPayment";
+import AddCardScreen from "./AddCard";
 import { supabase } from "../../supabaseHelper/supabase";
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
@@ -76,21 +80,26 @@ export default function AppNavigator() {
   }, []);
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator
-        initialRouteName="Login"
-        screenOptions={{ headerShown: false }}
-      >
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="SignUp" component={SignUp} />
-        <Stack.Screen name="ForgotPassWord" component={ForgotPassWord} />
-        <Stack.Screen name="Verification" component={VerificationScreen} />
-        <Stack.Screen name="HomeVer1" component={HomeVer1} />
-        <Stack.Screen name="SearchScreen" component={SearchScreen} />
-        <Stack.Screen name="Food_B" component={FoodScreen} />
-        <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
-        <Stack.Screen name="RestaurantScreen" component={RestaurantScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <CartProvider>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator
+          initialRouteName="Login"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="SignUp" component={SignUp} />
+          <Stack.Screen name="ForgotPassWord" component={ForgotPassWord} />
+          <Stack.Screen name="Verification" component={VerificationScreen} />
+          <Stack.Screen name="HomeVer1" component={HomeVer1} />
+          <Stack.Screen name="SearchScreen" component={SearchScreen} />
+          <Stack.Screen name="Food_B" component={FoodScreen} />
+          <Stack.Screen name="FoodDetail" component={FoodDetailScreen} />
+          <Stack.Screen name="RestaurantScreen" component={RestaurantScreen} />
+          <Stack.Screen name="CartScreen" component={CartScreen} />
+          <Stack.Screen name="Payment" component={CartPayment} />
+          <Stack.Screen name="AddCardScreen" component={AddCardScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </CartProvider>
   );
 }
