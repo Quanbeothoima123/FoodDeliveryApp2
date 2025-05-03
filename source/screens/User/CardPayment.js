@@ -27,6 +27,33 @@ const CartPayment = () => {
   const [selectedCard, setSelectedCard] = useState(null);
   const { getUserId } = require("../../utils/authHelper");
 
+  // Hàm lấy danh sách thẻ theo payment_method_id
+  const fetchCards = async (userid, methodId) => {
+    try {
+      const query = supabase
+        .from("card_payment_info")
+        .select(
+          "id, payment_method_id, card_holder_name, card_number, expire_date, cvc"
+        )
+        .eq("userid", userid);
+      if (methodId) {
+        query.eq("payment_method_id", methodId);
+      }
+      const { data: cardData, error: cardError } = await query.order("id", {
+        ascending: true,
+      });
+
+      if (cardError) {
+        console.log("Error fetching card info:", cardError);
+        return [];
+      }
+      return cardData;
+    } catch (error) {
+      console.log("Error fetching cards:", error);
+      return [];
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -36,6 +63,7 @@ const CartPayment = () => {
           return;
         }
 
+        // Lấy payment_method
         const { data: methods, error: methodError } = await supabase
           .from("payment_method")
           .select("id, name, img, order_number")
@@ -54,32 +82,18 @@ const CartPayment = () => {
         }));
 
         setPaymentMethods(formattedMethods);
-        setSelectedMethod(
-          route.params?.paymentMethodId || formattedMethods[0]?.id || null
-        );
 
-        // Lấy card_payment_info, lọc theo payment_method_id nếu selectedMethod có
-        const query = supabase
-          .from("card_payment_info")
-          .select(
-            "id, payment_method_id, card_holder_name, card_number, expire_date, cvc"
-          )
-          .eq("userid", userid);
-        if (selectedMethod) {
-          query.eq("payment_method_id", selectedMethod);
-        }
-        const { data: cardData, error: cardError } = await query.order("id", {
-          ascending: true,
-        });
+        // Gán selectedMethod lần đầu hoặc từ route.params
+        const initialMethod =
+          route.params?.paymentMethodId || formattedMethods[0]?.id || null;
+        setSelectedMethod(initialMethod);
 
-        if (cardError) {
-          console.log("Error fetching card info:", cardError);
-          return;
-        }
-
+        // Lấy thẻ theo selectedMethod
+        const cardData = await fetchCards(userid, initialMethod);
         setCardInfo(cardData);
         setSelectedCard(route.params?.newCardId || cardData[0]?.id || null);
 
+        // Lấy total
         const { data: orderData, error: orderError } = await supabase
           .from("order")
           .select("total")
@@ -98,7 +112,24 @@ const CartPayment = () => {
     };
 
     fetchData();
-  }, [orderId, route.params?.newCardId, selectedMethod]);
+  }, [orderId, route.params?.newCardId, route.params?.paymentMethodId]);
+
+  // Cập nhật thẻ khi selectedMethod thay đổi
+  useEffect(() => {
+    if (!selectedMethod) return;
+
+    const updateCards = async () => {
+      const userid = await getUserId();
+      if (!userid) return;
+
+      const cardData = await fetchCards(userid, selectedMethod);
+      setCardInfo(cardData);
+      setSelectedCard(cardData[0]?.id || null);
+    };
+
+    updateCards();
+  }, [selectedMethod]);
+
   const handlePayAndConfirm = async () => {
     if (!selectedMethod) {
       Alert.alert("Lỗi", "Vui lòng chọn phương thức thanh toán");
@@ -117,7 +148,6 @@ const CartPayment = () => {
       return;
     }
     try {
-      // Lấy ID trạng thái "Đang giao"
       const { data: statusData, error: statusError } = await supabase
         .from("status")
         .select("id")
@@ -135,7 +165,7 @@ const CartPayment = () => {
         .update({
           payment_method: selectedMethod,
           is_payment: true,
-          status: statusId, // Cập nhật trạng thái
+          status: statusId,
         })
         .eq("id", orderId);
 
@@ -294,6 +324,7 @@ const CartPayment = () => {
     </View>
   );
 };
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -365,7 +396,6 @@ const styles = StyleSheet.create({
   },
   cardDetailsContainer: {
     marginVertical: 24,
-    // height: 82,
     backgroundColor: "#F4F5F7",
     borderRadius: 10,
   },
