@@ -1,77 +1,142 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import Feather from "react-native-vector-icons/Feather";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import CustomButton from "../../components/CustomButton";
+import { useNavigation } from "@react-navigation/native";
+import { supabase } from "../../supabaseHelper/supabase";
+import { getUserId } from "../../utils/authHelper";
 
 const MyAddressScreen = () => {
   const fontsLoaded = useCustomFonts();
-  if (!fontsLoaded) return null;
+  const navigation = useNavigation();
+  const [addresses, setAddresses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const addresses = [
-    {
-      type: "HOME",
-      address: "2464 Royal Ln. Mesa, New Jersey 45463",
-      icon: require("../../../assets/images/User/home.png"),
-    },
-    {
-      type: "WORK",
-      address: "3891 Ranchview Dr. Richardson, California 62639",
-      icon: require("../../../assets/images/User/work.png"),
-    },
-  ];
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      try {
+        setLoading(true);
+        const userId = await getUserId();
+        if (!userId) return;
+
+        const { data, error } = await supabase
+          .from("address")
+          .select(
+            `
+            id,
+            address,
+            labeladdress (
+              name,
+              icon
+            )
+          `
+          )
+          .eq("userid", userId);
+
+        if (error) throw error;
+
+        setAddresses(
+          data.map((item) => ({
+            id: item.id,
+            type: item.labeladdress.name,
+            address: item.address,
+            icon: item.labeladdress.icon
+              ? { uri: item.labeladdress.icon }
+              : require("../../../assets/images/User/home.png"),
+          }))
+        );
+      } catch (err) {
+        console.log("Fetch addresses error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAddresses();
+  }, []);
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => console.log("Go back")}
+          onPress={() => navigation.navigate("ProfileScreen")}
         >
           <Ionicons name="chevron-back" size={24} color="#181C2E" />
         </TouchableOpacity>
         <Text style={[styles.title, { fontFamily: "Sen" }]}>My Address</Text>
       </View>
 
-      {addresses.map((item, index) => (
-        <TouchableOpacity key={index} style={styles.menuItem}>
-          <View style={styles.menuItemLeft}>
-            <View style={styles.IconButton}>
-              <Image
-                source={item.icon}
-                style={styles.menuIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.addressContainer}>
-              <View style={styles.menuItemHeader}>
-                <Text style={[styles.menuText, { fontFamily: "Sen" }]}>
-                  {item.type}
-                </Text>
-                <View style={styles.menuItemRight}>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Feather name="edit" size={15} color="#FF7622" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Feather name="trash-2" size={15} color="#FF7622" />
-                  </TouchableOpacity>
-                </View>
+      {addresses.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { fontFamily: "Sen" }]}>
+            Bạn chưa có địa chỉ nào
+          </Text>
+        </View>
+      ) : (
+        addresses.map((item) => (
+          // Trong danh sách địa chỉ, thay đổi onPress
+          <TouchableOpacity
+            key={item.id}
+            style={styles.menuItem}
+            onPress={() =>
+              navigation.navigate("AddNewAddressScreen", { addressId: item.id })
+            }
+          >
+            <View style={styles.menuItemLeft}>
+              <View style={styles.IconButton}>
+                <Image
+                  source={item.icon}
+                  style={styles.menuIcon}
+                  resizeMode="contain"
+                />
               </View>
-              <Text style={[styles.addressText, { fontFamily: "Sen" }]}>
-                {item.address}
-              </Text>
+              <View style={styles.addressContainer}>
+                <View style={styles.menuItemHeader}>
+                  <Text style={[styles.menuText, { fontFamily: "Sen" }]}>
+                    {item.type}
+                  </Text>
+                  <View style={styles.menuItemRight}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() =>
+                        navigation.navigate("AddNewAddressScreen", {
+                          addressId: item.id,
+                        })
+                      }
+                    >
+                      <Feather name="edit" size={15} color="#FF7622" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionButton}>
+                      <Feather name="trash-2" size={15} color="#FF7622" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={[styles.addressText, { fontFamily: "Sen" }]}>
+                  {item.address}
+                </Text>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
-      ))}
+          </TouchableOpacity>
+        ))
+      )}
 
       <View style={styles.buttonContainer}>
         <CustomButton
           title="ADD NEW ADDRESS"
           backgroundColor="#FF7622"
           textColor="#FFFFFF"
-          onPress={() => console.log("Add new address")}
+          onPress={() => navigation.navigate("AddNewAddressScreen")}
         />
       </View>
     </View>

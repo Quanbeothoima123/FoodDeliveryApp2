@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -95,7 +96,7 @@ const ProfileScreen = () => {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate("HomeVer1")}
           >
             <Icon name="chevron-back" size={24} color="#181C2E" />
           </TouchableOpacity>
@@ -139,7 +140,10 @@ const ProfileScreen = () => {
             </TouchableOpacity>
 
             {/* Addresses */}
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("MyAddressScreen")}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image
@@ -153,19 +157,25 @@ const ProfileScreen = () => {
               <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
             </TouchableOpacity>
             {/* History order and status*/}
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("MyOrdersScreen")}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image source={clockIcon} style={styles.menuIcon} />
                 </View>
-                <Text style={styles.menuText}>Personal Info</Text>
+                <Text style={styles.menuText}>Status--History</Text>
               </View>
               <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
             </TouchableOpacity>
           </View>
           <View style={styles.wrapMoreOption}>
             {/* Cart */}
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("CartScreen")}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image
@@ -272,7 +282,26 @@ const ProfileScreen = () => {
           </View>
           <View style={styles.wrapMoreOption}>
             {/* Log Out */}
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                Alert.alert(
+                  "Log Out",
+                  "Are you sure you want to log out?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "OK",
+                      onPress: async () => {
+                        await supabase.auth.signOut();
+                        navigation.navigate("Login");
+                      },
+                    },
+                  ],
+                  { cancelable: false }
+                );
+              }}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image

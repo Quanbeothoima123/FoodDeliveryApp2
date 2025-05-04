@@ -25,6 +25,9 @@ import ChatScreen from "./MessageShipper";
 import ProfileScreen from "./Profile";
 import PersonalInfoScreen from "./PersonalInfo";
 import EditProfileScreen from "./EditProfile";
+import MyAddressScreen from "./Address";
+import AddNewAddressScreen from "./AddNewAddress";
+import MyOrdersScreen from "./MyOrders";
 import { supabase } from "../../supabaseHelper/supabase";
 
 import { Alert } from "react-native";
@@ -122,6 +125,12 @@ export default function AppNavigator() {
             name="EditProfileScreen"
             component={EditProfileScreen}
           />
+          <Stack.Screen name="MyAddressScreen" component={MyAddressScreen} />
+          <Stack.Screen
+            name="AddNewAddressScreen"
+            component={AddNewAddressScreen}
+          />
+          <Stack.Screen name="MyOrdersScreen" component={MyOrdersScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </CartProvider>

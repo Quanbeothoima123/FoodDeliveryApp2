@@ -4,71 +4,118 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
+  StyleSheet,
 } from "react-native";
 import MapView from "react-native-maps";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import CustomButton from "../../components/CustomButton";
 import * as Location from "expo-location";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { supabase } from "../../supabaseHelper/supabase";
 
 const AddNewAddressScreen = () => {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { addressId } = route.params || {};
 
-  // Trạng thái cho bản đồ
   const [region, setRegion] = useState({
-    latitude: 37.78825, // Vị trí mặc định (San Francisco)
+    latitude: 37.78825,
     longitude: -122.4324,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
 
-  // Trạng thái cho các trường nhập liệu
-  const [street, setStreet] = useState("Hason Nagar");
-  const [postCode, setPostCode] = useState("34567");
-  const [apartment, setApartment] = useState("345");
-  const [label, setLabel] = useState("Home");
-  const [address, setAddress] = useState(
-    "3235 Royal Ln. Mesa, New Jersey 34567"
-  );
+  const [street, setStreet] = useState("");
+  const [postCode, setPostCode] = useState("");
+  const [apartment, setApartment] = useState("");
+  const [label, setLabel] = useState("");
+  const [labels, setLabels] = useState([]); // Danh sách label từ Supabase
+  const [address, setAddress] = useState("");
 
-  // Lấy vị trí hiện tại để hiển thị bản đồ
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Permission to access location was denied. Using default location instead."
-        );
+        Alert.alert("Permission Denied", "Using default location.");
         return;
       }
 
-      try {
-        let location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        const { latitude, longitude } = location.coords;
-        setRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      } catch (error) {
-        console.log("Error getting location:", error);
-        Alert.alert(
-          "Error",
-          "Could not fetch location. Using default location."
-        );
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const { latitude, longitude } = location.coords;
+      setRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      // Lấy danh sách label từ labeladdress
+      const { data: labelData, error: labelError } = await supabase
+        .from("labeladdress")
+        .select("id, name");
+      if (labelError) throw labelError;
+      setLabels(labelData);
+      setLabel(labelData[0]?.name || ""); // Mặc định chọn label đầu tiên
+
+      if (addressId) {
+        const { data, error } = await supabase
+          .from("address")
+          .select("address, postcode, street, apartment, labeladdress(name)")
+          .eq("id", addressId)
+          .single();
+        if (error) throw error;
+        setStreet(data.street || "");
+        setPostCode(data.postcode || "");
+        setApartment(data.apartment || "");
+        setAddress(data.address || "");
+        setLabel(data.labeladdress.name || labelData[0]?.name || "");
       }
     })();
-  }, []);
+  }, [addressId]);
+
   if (!fontsLoaded) return null;
+
+  const handleSave = async () => {
+    const selectedLabel = labels.find((l) => l.name === label);
+    if (!selectedLabel) {
+      Alert.alert("Error", "Please select a valid label.");
+      return;
+    }
+
+    if (addressId) {
+      const { error } = await supabase
+        .from("address")
+        .update({
+          address,
+          postcode: postCode,
+          street,
+          apartment,
+          labelid: selectedLabel.id,
+        })
+        .eq("id", addressId);
+      if (error) throw error;
+    } else {
+      const userId = (await supabase.auth.getUser()).data.user.id;
+      const { error } = await supabase.from("address").insert({
+        userid: userId,
+        address,
+        postcode: postCode,
+        street,
+        apartment,
+        labelid: selectedLabel.id,
+      });
+      if (error) throw error;
+    }
+    navigation.navigate("MyAddressScreen");
+  };
+
   return (
     <View style={styles.container}>
-      {/* Bản đồ làm nền */}
       <View style={styles.mapContainer}>
         <MapView
           style={styles.map}
@@ -85,14 +132,14 @@ const AddNewAddressScreen = () => {
         </View>
       </View>
 
-      {/* Form cố định */}
       <View style={styles.formContainer}>
-        {/* Nút Back */}
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("MyAddressScreen")}
+        >
           <Ionicons name="chevron-back" size={24} color="white" />
         </TouchableOpacity>
 
-        {/* Địa chỉ */}
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { fontFamily: "Sen" }]}>ADDRESS</Text>
           <View style={styles.addressContainer}>
@@ -102,13 +149,15 @@ const AddNewAddressScreen = () => {
               color="#A0A5BA"
               style={styles.addressIcon}
             />
-            <Text style={[styles.addressText, { fontFamily: "Sen" }]}>
-              {address}
-            </Text>
+            <TextInput
+              style={[styles.addressText, { fontFamily: "Sen", flex: 1 }]}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="Enter address"
+            />
           </View>
         </View>
 
-        {/* Trường Street và Post Code */}
         <View style={styles.row}>
           <View style={[styles.inputGroup, styles.halfWidth]}>
             <Text style={[styles.label, { fontFamily: "Sen" }]}>STREET</Text>
@@ -131,7 +180,6 @@ const AddNewAddressScreen = () => {
           </View>
         </View>
 
-        {/* Trường Apartment */}
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { fontFamily: "Sen" }]}>APARTMENT</Text>
           <TextInput
@@ -139,83 +187,41 @@ const AddNewAddressScreen = () => {
             value={apartment}
             onChangeText={setApartment}
             placeholder="Enter apartment number"
-            keyboardType="numeric"
           />
         </View>
 
-        {/* Chọn nhãn (Label As) */}
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { fontFamily: "Sen" }]}>LABEL AS</Text>
           <View style={styles.labelButtons}>
-            <TouchableOpacity
-              style={[
-                styles.labelButton,
-                label === "Home" && styles.labelButtonSelected,
-              ]}
-              onPress={() => setLabel("Home")}
-            >
-              <Text
+            {labels.map((item) => (
+              <TouchableOpacity
+                key={item.id}
                 style={[
-                  styles.labelButtonText,
-                  { fontFamily: "Sen" },
-                  label === "Home" && styles.labelButtonTextSelected,
+                  styles.labelButton,
+                  label === item.name && styles.labelButtonSelected,
                 ]}
+                onPress={() => setLabel(item.name)}
               >
-                Home
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.labelButton,
-                label === "Work" && styles.labelButtonSelected,
-              ]}
-              onPress={() => setLabel("Work")}
-            >
-              <Text
-                style={[
-                  styles.labelButtonText,
-                  { fontFamily: "Sen" },
-                  label === "Work" && styles.labelButtonTextSelected,
-                ]}
-              >
-                Work
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.labelButton,
-                label === "Other" && styles.labelButtonSelected,
-              ]}
-              onPress={() => setLabel("Other")}
-            >
-              <Text
-                style={[
-                  styles.labelButtonText,
-                  { fontFamily: "Sen" },
-                  label === "Other" && styles.labelButtonTextSelected,
-                ]}
-              >
-                Other
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.labelButtonText,
+                    { fontFamily: "Sen" },
+                    label === item.name && styles.labelButtonTextSelected,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Nút Save Location */}
         <View style={styles.buttonContainer}>
           <CustomButton
             title="SAVE LOCATION"
             backgroundColor="#FF7622"
             textColor="#FFFFFF"
-            onPress={() =>
-              console.log("Save location", {
-                address,
-                street,
-                postCode,
-                apartment,
-                label,
-              })
-            }
+            onPress={handleSave}
           />
         </View>
       </View>
@@ -256,7 +262,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 15,
-    marginTop: -20,
+    marginTop: -90,
   },
   backButton: {
     position: "absolute",

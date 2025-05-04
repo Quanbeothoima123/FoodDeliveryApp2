@@ -1,91 +1,142 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   FlatList,
-  StyleSheet,
   Image,
   TouchableOpacity,
+  StyleSheet,
+  Alert,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
-
-// Placeholder images (replace with actual image paths)
-const pizzaHutImage = require("../../../assets/images/User/pizaaHut.jpg");
-const mcdonaldImage = require("../../../assets/images/User/mcdonald.jpg");
-const starbucksImage = require("../../../assets/images/User/starBuck.jpg");
-
-const ongoingOrders = [
-  {
-    id: "#162432",
-    image: pizzaHutImage,
-    name: "Pizza Hut",
-    price: "$35.25",
-    quantity: "03 Items",
-    category: "Food",
-  },
-  {
-    id: "#242432",
-    image: mcdonaldImage,
-    name: "McDonald",
-    price: "$40.15",
-    quantity: "02 Items",
-    category: "Drink",
-  },
-  {
-    id: "#240112",
-    image: starbucksImage,
-    name: "Starbucks",
-    price: "$10.20",
-    quantity: "01 Items",
-    category: "Drink",
-  },
-];
-
-const historyOrders = [
-  {
-    id: "#162432",
-    image: pizzaHutImage,
-    name: "Pizza Hut",
-    price: "$35.25",
-    time: "29 JAN, 12:30",
-    quantity: "03 Items",
-    category: "Food",
-    status: "Completed",
-  },
-  {
-    id: "#242432",
-    image: mcdonaldImage,
-    name: "McDonald",
-    price: "$40.15",
-    time: "30 JAN, 12:30",
-    quantity: "02 Items",
-    category: "Drink",
-    status: "Completed",
-  },
-  {
-    id: "#240112",
-    image: starbucksImage,
-    name: "Starbucks",
-    price: "$10.20",
-    time: "30 JAN, 12:30",
-    quantity: "01 Items",
-    category: "Drink",
-    status: "Cancelled",
-  },
-];
-
+import { supabase } from "../../supabaseHelper/supabase";
+import { getUserId } from "../../utils/authHelper";
+import { useNavigation } from "@react-navigation/native";
 const MyOrdersScreen = () => {
   const fontsLoaded = useCustomFonts();
   const [activeTab, setActiveTab] = useState("Ongoing");
+  const [ongoingOrders, setOngoingOrders] = useState([]);
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigation = useNavigation();
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const userId = await getUserId();
+        if (!userId) return;
+
+        const { data: orders, error: orderError } = await supabase
+          .from("order")
+          .select(
+            `
+            id,
+            created_at,
+            ship_at,
+            total,
+            note,
+            delivery_address,
+            payment_method,
+            is_payment,
+            status (
+              name,
+              img
+            ),
+            orderdetail (
+              quantity,
+              productid (
+                name,
+                price,
+                img,
+                categoryid,
+                restaurantid
+              )
+            )
+          `
+          )
+          .eq("userid", userId)
+          .order("created_at", { ascending: false });
+
+        if (orderError) throw orderError;
+
+        const orderMap = new Map();
+        const ongoing = [];
+
+        for (const order of orders) {
+          for (const [index, detail] of order.orderdetail.entries()) {
+            const orderId = order.id;
+            const product = detail.productid;
+            const statusName = order.status.name;
+            const isPayment = order.is_payment;
+
+            // Hàm async để lấy category name
+            const getCategoryName = async (categoryId) => {
+              const { data, error } = await supabase
+                .from("category")
+                .select("name")
+                .eq("id", categoryId)
+                .single();
+              if (error) {
+                console.log("Fetch category error:", error);
+                return "Unknown";
+              }
+              return data?.name || "Unknown";
+            };
+
+            const category = await getCategoryName(product.categoryid);
+
+            const item = {
+              id: orderId,
+              orderIndex: index + 1,
+              image: product.img
+                ? { uri: product.img }
+                : { uri: "https://via.placeholder.com/60" },
+              name: product.name,
+              price: `$${product.price.toFixed(2)}`,
+              quantity: `${detail.quantity} Items`,
+              category,
+              time: order.ship_at
+                ? new Date(order.ship_at).toLocaleString("en-US", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "",
+              status: statusName,
+            };
+
+            if (
+              statusName === "Đã hủy" ||
+              (statusName === "Chưa thanh toán" && !isPayment)
+            ) {
+              if (!orderMap.has(orderId)) orderMap.set(orderId, []);
+              orderMap.get(orderId).push(item);
+            } else {
+              ongoing.push(item);
+            }
+          }
+        }
+
+        setOngoingOrders(ongoing);
+        setHistoryOrders(Array.from(orderMap.values()).flat());
+      } catch (err) {
+        console.log("Fetch orders error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
 
   const renderOngoingItem = ({ item }) => (
     <View style={styles.orderContainer}>
       <View style={styles.categoryWrapper}>
         <Text style={styles.categoryText}>{item.category}</Text>
       </View>
-
       <View style={styles.orderDetails}>
         <Image
           source={item.image}
@@ -95,7 +146,9 @@ const MyOrdersScreen = () => {
         <View style={styles.orderInfo}>
           <View style={styles.orderHeader}>
             <Text style={styles.orderName}>{item.name}</Text>
-            <Text style={styles.orderId}>{item.id}</Text>
+            <TouchableOpacity onPress={() => Alert.alert("Order ID", item.id)}>
+              <Text style={styles.orderId}>{item.id.slice(-6)}</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.priceQuantityContainer}>
             <Text style={styles.orderPrice}>{item.price}</Text>
@@ -142,7 +195,9 @@ const MyOrdersScreen = () => {
         <View style={styles.orderInfo}>
           <View style={styles.orderHeader}>
             <Text style={styles.orderName}>{item.name}</Text>
-            <Text style={styles.orderId}>{item.id}</Text>
+            <TouchableOpacity onPress={() => Alert.alert("Order ID", item.id)}>
+              <Text style={styles.orderId}>{item.id.slice(-6)}</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.priceTimeQuantityContainer}>
             <Text style={styles.orderPrice}>{item.price}</Text>
@@ -167,7 +222,13 @@ const MyOrdersScreen = () => {
     </View>
   );
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -175,7 +236,7 @@ const MyOrdersScreen = () => {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => console.log("Go back")}
+            onPress={() => navigation.goBack()}
           >
             <Icon name="chevron-back" size={24} color="#181C2E" />
           </TouchableOpacity>
@@ -218,7 +279,7 @@ const MyOrdersScreen = () => {
         renderItem={
           activeTab === "Ongoing" ? renderOngoingItem : renderHistoryItem
         }
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id + item.orderIndex}
         contentContainerStyle={styles.orderList}
       />
     </View>
