@@ -151,7 +151,7 @@ export default function HomeVer1() {
         <View style={styles.deliveryContainer}>
           <MenuButton
             backgroundColor="#ECF0F4"
-            onPress={() => console.log("Open sidebar")}
+            onPress={() => navigation.navigate("ProfileScreen")}
           />
           <View style={{ marginLeft: 20 }}>
             <Text style={styles.deliveryText}>DELIVERY TO</Text>

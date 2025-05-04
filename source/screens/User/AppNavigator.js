@@ -4,7 +4,7 @@ import {
 } from "@react-navigation/native"; // Thêm createNavigationContainerRef
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useEffect } from "react";
-import { Linking } from "react-native";
+import { ImageComponent, Linking } from "react-native";
 import { CartProvider } from "../../utils/CartContext";
 import Login from "./Login";
 import SignUp from "./SignUp";
@@ -22,7 +22,11 @@ import PaymentSuccessScreen from "./PaymentSuccessful";
 import TrackingOrder from "./TrackingOrder";
 import CallScreen from "./CallShipper";
 import ChatScreen from "./MessageShipper";
+import ProfileScreen from "./Profile";
+import PersonalInfoScreen from "./PersonalInfo";
+import EditProfileScreen from "./EditProfile";
 import { supabase } from "../../supabaseHelper/supabase";
+
 import { Alert } from "react-native";
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef(); // Tạo navigationRef
@@ -109,6 +113,15 @@ export default function AppNavigator() {
           <Stack.Screen name="TrackingOrder" component={TrackingOrder} />
           <Stack.Screen name="CallScreen" component={CallScreen} />
           <Stack.Screen name="ChatScreen" component={ChatScreen} />
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+          <Stack.Screen
+            name="PersonalInfoScreen"
+            component={PersonalInfoScreen}
+          />
+          <Stack.Screen
+            name="EditProfileScreen"
+            component={EditProfileScreen}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </CartProvider>

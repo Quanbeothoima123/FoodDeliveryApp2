@@ -1,38 +1,101 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
   Image,
   TouchableOpacity,
+  StyleSheet,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Ionicons";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
-// Placeholder images for the user avatar and menu item icons
-const userAvatar = require("../../../assets/images/User/american-spicy.jpg"); // Replace with actual image path, e.g., require('../assets/userAvatar.png')
-const personalInfoIcon = require("../../../assets/images/User/personnal.png"); // Replace with actual image path
-const addressesIcon = require("../../../assets/images/User/address.png"); // Replace with actual image path
-const cartIcon = require("../../../assets/images/User/cart.png"); // Replace with actual image path
-const favouriteIcon = require("../../../assets/images/User/favorite.png"); // Replace with actual image path
-const notificationsIcon = require("../../../assets/images/User/notification.png"); // Replace with actual image path
-const paymentMethodIcon = require("../../../assets/images/User/payment_method.png"); // Replace with actual image path
-const faqsIcon = require("../../../assets/images/User/faqs.png"); // Replace with actual image path
-const userReviewsIcon = require("../../../assets/images/User/user_review.png"); // Replace with actual image path
-const settingsIcon = require("../../../assets/images/User/settings.png"); // Replace with actual image path
-const logoutIcon = require("../../../assets/images/User/Logout.png"); // Replace with actual image path
+import { supabase } from "../../supabaseHelper/supabase";
+import { getUserId } from "../../utils/authHelper";
+
+const userAvatar = require("../../../assets/images/User/american-spicy.jpg");
+const personalInfoIcon = require("../../../assets/images/User/personnal.png");
+const addressesIcon = require("../../../assets/images/User/address.png");
+const cartIcon = require("../../../assets/images/User/cart.png");
+const favouriteIcon = require("../../../assets/images/User/favorite.png");
+const notificationsIcon = require("../../../assets/images/User/notification.png");
+const paymentMethodIcon = require("../../../assets/images/User/payment_method.png");
+const faqsIcon = require("../../../assets/images/User/faqs.png");
+const userReviewsIcon = require("../../../assets/images/User/user_review.png");
+const settingsIcon = require("../../../assets/images/User/settings.png");
+const logoutIcon = require("../../../assets/images/User/Logout.png");
+const clockIcon = require("../../../assets/images/User/icons8-clock-50.png");
 
 const ProfileScreen = () => {
   const fontsLoaded = useCustomFonts();
-  if (!fontsLoaded) return null;
+  const navigation = useNavigation();
+  const [profile, setProfile] = useState({
+    fullname: "Loading...",
+    bio: "Loading...",
+    avatar: null,
+  });
+  const [loading, setLoading] = useState(true);
+
+  // Lấy dữ liệu từ Supabase
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const userId = await getUserId();
+        if (!userId) {
+          setProfile({
+            fullname: "Not logged in",
+            bio: "Please log in",
+            avatar: null,
+          });
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profile")
+          .select("fullname, bio, avatar")
+          .eq("userid", userId)
+          .single();
+
+        if (error) {
+          throw new Error("Error fetching profile: " + error.message);
+        }
+
+        setProfile({
+          fullname: data.fullname || "Not provided",
+          bio: data.bio || "No bio available",
+          avatar: data.avatar || null,
+        });
+      } catch (err) {
+        console.log("Fetch profile error:", err);
+        setProfile({
+          fullname: "Error",
+          bio: "Failed to load profile",
+          avatar: null,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => console.log("Go back")}
+            onPress={() => navigation.goBack()}
           >
             <Icon name="chevron-back" size={24} color="#181C2E" />
           </TouchableOpacity>
@@ -48,19 +111,24 @@ const ProfileScreen = () => {
       >
         <View style={styles.profileSection}>
           <Image
-            source={userAvatar}
+            source={profile.avatar ? { uri: profile.avatar } : userAvatar}
             style={styles.avatar}
             defaultSource={{ uri: "https://via.placeholder.com/80" }}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Vishal Khadok</Text>
-            <Text style={styles.profileBio}>I love fast food</Text>
+            <Text style={styles.profileName}>{profile.fullname}</Text>
+            <Text style={styles.profileBio}>{profile.bio}</Text>
           </View>
         </View>
         <View style={styles.menuContainer}>
           {/* Personal Info */}
           <View style={styles.wrapMoreOption}>
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                navigation.navigate("PersonalInfoScreen");
+              }}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image source={personalInfoIcon} style={styles.menuIcon} />
@@ -81,6 +149,16 @@ const ProfileScreen = () => {
                   />
                 </View>
                 <Text style={styles.menuText}>Addresses</Text>
+              </View>
+              <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
+            </TouchableOpacity>
+            {/* History order and status*/}
+            <TouchableOpacity style={styles.menuItem}>
+              <View style={styles.menuItemLeft}>
+                <View style={styles.IconButton}>
+                  <Image source={clockIcon} style={styles.menuIcon} />
+                </View>
+                <Text style={styles.menuText}>Personal Info</Text>
               </View>
               <FeatherIcon name="chevron-right" size={20} color={"#A0A5BA"} />
             </TouchableOpacity>
