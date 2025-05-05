@@ -1,9 +1,10 @@
 import { View, StyleSheet, Text, Image, TouchableOpacity } from "react-native";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import CustomButton from "../../components/CustomButton";
-
+import { useNavigation } from "@react-navigation/native";
 export default function OnBoarding_four() {
   const fontsLoaded = useCustomFonts();
+  const navigation = useNavigation();
   if (!fontsLoaded) return null;
 
   return (
@@ -25,7 +26,7 @@ export default function OnBoarding_four() {
         title="GET STARTED"
         backgroundColor="#FF7622"
         textColor="#FFFFFF"
-        onPress={() => console.log("GET STARTED")}
+        onPress={() => navigation.navigate("Login")}
       />
       <TouchableOpacity style={styles.skipButton}>
         <Text style={styles.skipText}>Skip</Text>
