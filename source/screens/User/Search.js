@@ -14,15 +14,17 @@ import CartButton from "../../components/CartButton";
 import { useCustomFonts } from "../../hooks/useCustomFonts";
 import { supabase } from "../../supabaseHelper/supabase";
 import { useNavigation } from "@react-navigation/native";
+import { useCart } from "../../utils/CartContext";
+import { getUserId } from "../../utils/authHelper";
 export default function SearchScreen() {
   const fontsLoaded = useCustomFonts();
-  const navigation = useNavigation(); // Thêm dòng này
+  const { fetchCartCount } = useCart(); // Thêm dòng này
+  const navigation = useNavigation();
   const [searchText, setSearchText] = useState("");
-  const [suggestion, setSuggestion] = useState(null);
   const [recentKeywords, setRecentKeywords] = useState([]);
   const [suggestedRestaurants, setSuggestedRestaurants] = useState([]);
   const [popularFastFood, setPopularFastFood] = useState([]);
-
+  const [badgeCount, setBadgeCount] = useState(0); // Thêm dòng này
   useEffect(() => {
     const fetchData = async () => {
       // Lấy danh mục cho recentKeywords
@@ -34,7 +36,7 @@ export default function SearchScreen() {
         }))
       );
 
-      // Lấy nhà hàng cho suggestedRestaurants
+      // Lấy nhà hàng cho suggestedRestaurants (mặc định)
       const { data: resData } = await supabase
         .from("restaurant")
         .select("*")
@@ -42,13 +44,134 @@ export default function SearchScreen() {
       setSuggestedRestaurants(
         resData.map((res) => ({
           id: res.id,
-          img: res.img,
-          namerestaurant: res.name,
+          nameRestaurant: res.name,
+          image: res.img,
+          description: res.description,
+          category: res.category,
           starRate: res.starrating,
+          feeShip: res.feeship === 0 ? "Free" : res.feeship,
+          timeShipping: res.timeship,
+          more_image: res.more_image || [],
         }))
       );
 
-      // Lấy món ăn cho popularFastFood
+      // Lấy món ăn cho popularFastFood (mặc định)
+      const { data: prodData } = await supabase
+        .from("product")
+        .select("*, restaurant(name)")
+        .limit(3);
+      setPopularFastFood(
+        prodData.map((prod) => ({
+          id: prod.id,
+          img: prod.img,
+          pizzaName: prod.name,
+          NameRestaurant: prod.restaurant.name,
+        }))
+      );
+      const userid = await getUserId();
+      if (userid) {
+        const count = await fetchCartCount(userid);
+        setBadgeCount(count);
+
+        // Lắng nghe thay đổi trong bảng cart
+        const subscription = supabase
+          .channel(`cart-changes-${userid}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "cart",
+              filter: `userid=eq.${userid}`,
+            },
+            (payload) => {
+              fetchCartCount(userid).then((newCount) => {
+                setBadgeCount(newCount);
+              });
+            }
+          )
+          .subscribe();
+
+        // Dọn dẹp subscription
+        return () => {
+          supabase.removeChannel(subscription);
+        };
+      } else {
+        setBadgeCount(0);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleSearch = async () => {
+    if (!searchText.trim()) return;
+
+    // Truy vấn sản phẩm có tên chứa từ khóa
+    const { data: prodData } = await supabase
+      .from("product")
+      .select(
+        "*, restaurant(name, id, img, description, starrating, feeship, timeship, more_image, category)"
+      )
+      .ilike("name", `%${searchText}%`);
+
+    // Cập nhật popularFastFood với sản phẩm tìm được
+    setPopularFastFood(
+      prodData.map((prod) => ({
+        id: prod.id,
+        img: prod.img,
+        pizzaName: prod.name,
+        NameRestaurant: prod.restaurant.name,
+      }))
+    );
+
+    // Lấy danh sách nhà hàng từ các sản phẩm tìm được
+    const restaurantIds = [
+      ...new Set(prodData.map((prod) => prod.restaurant.id)),
+    ];
+    const { data: resData } = await supabase
+      .from("restaurant")
+      .select("*")
+      .in("id", restaurantIds);
+
+    // Cập nhật suggestedRestaurants với nhà hàng liên quan
+    setSuggestedRestaurants(
+      resData.map((res) => ({
+        id: res.id,
+        nameRestaurant: res.name,
+        image: res.img,
+        description: res.description,
+        category: res.category,
+        starRate: res.starrating,
+        feeShip: res.feeship === 0 ? "Free" : res.feeship,
+        timeShipping: res.timeship,
+        more_image: res.more_image || [],
+      }))
+    );
+  };
+
+  const clearText = () => {
+    setSearchText("");
+    // Reset về dữ liệu mặc định khi xóa từ khóa
+    const fetchDefaultData = async () => {
+      const { data: resData } = await supabase
+        .from("restaurant")
+        .select("*")
+        .limit(3);
+      setSuggestedRestaurants(
+        resData.map((res) => ({
+          id: res.id,
+          nameRestaurant: res.name,
+          image: res.img,
+          description: res.description,
+          category: res.category,
+          starRate: res.starrating,
+          feeShip: res.feeship === 0 ? "Free" : res.feeship,
+          timeShipping: res.timeship,
+          more_image: res.more_image || [],
+        }))
+      );
+
       const { data: prodData } = await supabase
         .from("product")
         .select("*, restaurant(name)")
@@ -62,30 +185,11 @@ export default function SearchScreen() {
         }))
       );
     };
-    fetchData();
-  }, []);
-
-  const handleTextChange = (text) => {
-    setSearchText(text);
-    if (text.length === 0) {
-      setSuggestion(null);
-      return;
-    }
-
-    const sortedKeywords = [...recentKeywords].sort((a, b) =>
-      a.namecategory.localeCompare(b.namecategory)
-    );
-    const matchedSuggestion = sortedKeywords.find((keyword) =>
-      keyword.namecategory.toLowerCase().startsWith(text.toLowerCase())
-    );
-    setSuggestion(matchedSuggestion ? matchedSuggestion.namecategory : null);
+    fetchDefaultData();
   };
 
-  const clearText = () => {
-    setSearchText("");
-    setSuggestion(null);
-  };
   if (!fontsLoaded) return null;
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       {/* Header */}
@@ -108,8 +212,15 @@ export default function SearchScreen() {
 
         <CartButton
           backgroundColor="#181C2E"
-          onPress={() => console.log("Open cart")}
-          badgeCount={2}
+          onPress={async () => {
+            const userid = await getUserId();
+            if (!userid) {
+              navigation.navigate("LoginScreen");
+            } else {
+              navigation.navigate("CartScreen");
+            }
+          }}
+          badgeCount={badgeCount}
         />
       </View>
 
@@ -119,14 +230,10 @@ export default function SearchScreen() {
         <TextInput
           placeholder="Search..."
           style={styles.searchInput}
-          value={suggestion || searchText}
-          onChangeText={handleTextChange}
+          value={searchText}
+          onChangeText={setSearchText}
           autoCapitalize="none"
-          selection={
-            searchText.length
-              ? { start: searchText.length, end: searchText.length }
-              : undefined
-          }
+          onSubmitEditing={handleSearch} // Xử lý khi nhấn Enter
         />
         {searchText.length > 0 && (
           <TouchableOpacity style={styles.clearIcon} onPress={clearText}>
@@ -149,7 +256,7 @@ export default function SearchScreen() {
             style={styles.keywordItem}
             onPress={() =>
               navigation.navigate("Food_B", { category: item.namecategory })
-            } // Thêm onPress
+            }
           >
             <Text style={styles.keywordText}>{item.namecategory}</Text>
           </TouchableOpacity>
@@ -162,15 +269,20 @@ export default function SearchScreen() {
         <Text style={styles.sectionTitle}>Suggested Restaurants</Text>
       </View>
       {suggestedRestaurants.map((restaurant) => (
-        <TouchableOpacity key={restaurant.id} style={styles.restaurantItem}>
-          {/* <Image source={restaurant.img} style={styles.restaurantImage} /> */}
+        <TouchableOpacity
+          key={restaurant.id}
+          style={styles.restaurantItem}
+          onPress={() =>
+            navigation.navigate("RestaurantScreen", { restaurant })
+          }
+        >
           <Image
-            source={{ uri: restaurant.img }}
+            source={{ uri: restaurant.image }}
             style={styles.restaurantImage}
           />
           <View style={styles.restaurantInfo}>
             <Text style={styles.restaurantName}>
-              {restaurant.namerestaurant}
+              {restaurant.nameRestaurant}
             </Text>
             <View style={styles.ratingContainer}>
               <Icon name="star" size={14} color="#FF7622" />
@@ -198,7 +310,6 @@ export default function SearchScreen() {
                 overflow: "visible",
               }}
             >
-              {/* <Image source={item.img} style={styles.fastFoodImage} /> */}
               <Image source={{ uri: item.img }} style={styles.fastFoodImage} />
               <View style={styles.fastFoodInfo}>
                 <Text style={styles.fastFoodTitle}>{item.pizzaName}</Text>
@@ -346,45 +457,20 @@ const styles = StyleSheet.create({
   fastFoodList: {
     paddingHorizontal: 20,
   },
-
   fastFoodItem: {
     marginRight: 15,
     alignItems: "center",
-    paddingTop: 50, // Để hình ảnh nổi lên mà không bị cắt
+    paddingTop: 50,
     marginBottom: 20,
   },
-
   fastFoodImage: {
     width: 122,
     height: 84,
     borderRadius: 20,
     position: "absolute",
-    top: -50, // Hình nổi lên trên khung thông tin
+    top: -50,
     zIndex: 1,
   },
-
-  fastFoodList: {
-    paddingHorizontal: 15,
-  },
-
-  fastFoodTitle: {
-    // Cách hình ảnh phía trên
-    marginTop: 30,
-    fontFamily: "Sen",
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#32343E",
-    textAlign: "left",
-    marginBottom: 5,
-  },
-
-  fastFoodRestaurant: {
-    fontSize: 13,
-    color: "#646982",
-    textAlign: "left",
-  },
-
-  // Đây là phần nền chứa tiêu đề và tên nhà hàng, giống với categoryInfo
   fastFoodInfo: {
     width: 153,
     height: 102,
@@ -399,5 +485,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
+  },
+  fastFoodTitle: {
+    marginTop: 30,
+    fontFamily: "Sen",
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#32343E",
+    textAlign: "left",
+    marginBottom: 5,
+  },
+  fastFoodRestaurant: {
+    fontSize: 13,
+    color: "#646982",
+    textAlign: "left",
   },
 });

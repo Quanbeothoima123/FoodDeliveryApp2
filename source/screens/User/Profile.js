@@ -218,7 +218,10 @@ const ProfileScreen = () => {
             </TouchableOpacity>
 
             {/* Payment Method */}
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => navigation.navigate("")}
+            >
               <View style={styles.menuItemLeft}>
                 <View style={styles.IconButton}>
                   <Image
